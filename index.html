@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Split — Receipt Splitter</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div id="loading-overlay" class="hidden">
+    <div class="spinner"></div>
+    <p>Scanning receipt…</p>
+  </div>
+
+  <header>
+    <div class="logo">🧾 Split</div>
+    <nav class="progress" id="progress">
+      <div class="progress-step" data-screen="upload">Upload</div>
+      <div class="progress-step" data-screen="items">Items</div>
+      <div class="progress-step" data-screen="people">People</div>
+      <div class="progress-step" data-screen="assign">Assign</div>
+      <div class="progress-step" data-screen="summary">Summary</div>
+    </nav>
+  </header>
+
+  <main>
+
+    <!-- ── UPLOAD ─────────────────────────────────────────────────── -->
+    <section id="screen-upload" class="screen active">
+      <h1>Scan a receipt</h1>
+      <p class="subtitle">Take a photo or upload an image</p>
+
+      <div id="dropzone">
+        <input type="file" id="file-input" accept="image/*" capture="environment">
+        <div id="dropzone-placeholder">
+          <span class="icon">📷</span>
+          <span>Tap to take photo or upload</span>
+        </div>
+        <img id="preview" alt="Receipt preview">
+      </div>
+
+      <button id="scan-btn" class="btn btn-primary" disabled>Scan Receipt →</button>
+    </section>
+
+    <!-- ── ITEMS ──────────────────────────────────────────────────── -->
+    <section id="screen-items" class="screen">
+      <h1>Review items</h1>
+      <p class="subtitle">Edit anything that looks wrong</p>
+
+      <div class="table-wrap">
+        <table id="items-table">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Qty</th>
+              <th>Price</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="items-tbody"></tbody>
+        </table>
+      </div>
+
+      <button id="add-item-btn" class="btn btn-ghost">+ Add item</button>
+
+      <div class="totals-grid">
+        <label>Subtotal</label>
+        <div class="totals-input-wrap"><span>$</span><input type="number" id="receipt-subtotal" min="0" step="0.01"></div>
+        <label>Tax</label>
+        <div class="totals-input-wrap"><span>$</span><input type="number" id="receipt-tax" min="0" step="0.01"></div>
+        <label>Tip</label>
+        <div class="totals-input-wrap"><span>$</span><input type="number" id="receipt-tip" min="0" step="0.01"></div>
+      </div>
+
+      <button id="items-next-btn" class="btn btn-primary">Add People →</button>
+    </section>
+
+    <!-- ── PEOPLE ─────────────────────────────────────────────────── -->
+    <section id="screen-people" class="screen">
+      <h1>Who's splitting?</h1>
+      <p class="subtitle">Add everyone at the table</p>
+
+      <div class="person-input-row">
+        <input type="text" id="person-input" placeholder="Enter a name…" maxlength="24">
+        <button id="add-person-btn" class="btn btn-primary-sm">Add</button>
+      </div>
+
+      <div id="people-chips" class="chips-container"></div>
+
+      <button id="people-next-btn" class="btn btn-primary">Assign Items →</button>
+    </section>
+
+    <!-- ── ASSIGN ─────────────────────────────────────────────────── -->
+    <section id="screen-assign" class="screen">
+      <h1>Assign items</h1>
+      <p class="subtitle">Tap names on each item — tap again to split</p>
+
+      <button id="assign-all-btn" class="btn btn-ghost btn-sm">Assign all to everyone</button>
+
+      <div id="assign-items" class="assign-list"></div>
+
+      <div class="assign-footer">
+        <div id="assign-totals" class="assign-totals"></div>
+        <button id="assign-next-btn" class="btn btn-primary">See Summary →</button>
+      </div>
+    </section>
+
+    <!-- ── SUMMARY ────────────────────────────────────────────────── -->
+    <section id="screen-summary" class="screen">
+      <h1>Summary</h1>
+      <div id="summary-cards" class="summary-cards"></div>
+
+      <div class="summary-actions">
+        <button id="copy-btn" class="btn btn-primary">Copy Summary</button>
+        <button id="restart-btn" class="btn btn-ghost">New Receipt</button>
+      </div>
+
+      <span id="summary-text" data-text=""></span>
+    </section>
+
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
