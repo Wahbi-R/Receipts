@@ -58,11 +58,12 @@ export default function HistoryScreen() {
             >
               <div className="flex items-baseline justify-between">
                 <span className="font-semibold text-sm">
-                  {entry.people.join(', ')}
+                  {entry.title || entry.people.join(', ')}
                 </span>
                 <span className="text-sm font-bold">${entry.total.toFixed(2)}</span>
               </div>
               <div className="text-xs text-gray-400 mt-0.5">
+                {entry.title && <span>{entry.people.join(', ')} · </span>}
                 {new Date(entry.created_at).toLocaleDateString(undefined, {
                   month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
                 })}

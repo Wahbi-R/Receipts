@@ -7,6 +7,11 @@ export default function UploadScreen() {
   const imageBase64 = useSplitStore(s => s.imageBase64)
   const { setImage, setReceipt, setScreen, setLoading } = useSplitStore()
 
+  const handleManual = () => {
+    setReceipt({ items: [], subtotal: 0, discount: 0, tax: 0, tip: 0, total: 0 })
+    setScreen('items')
+  }
+
   const handleFile = useCallback((file: File) => {
     if (!file.type.startsWith('image/')) return
     const reader = new FileReader()
@@ -96,6 +101,13 @@ export default function UploadScreen() {
         className="w-full py-3.5 rounded-xl bg-emerald-500 text-white font-semibold text-base disabled:opacity-40 hover:bg-emerald-600 active:scale-[.98] transition-all"
       >
         Scan Receipt →
+      </button>
+
+      <button
+        onClick={handleManual}
+        className="w-full py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 font-semibold text-sm hover:bg-gray-50 dark:hover:bg-gray-800 active:scale-[.98] transition-all"
+      >
+        Enter manually
       </button>
     </div>
   )

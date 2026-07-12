@@ -12,6 +12,7 @@ const TABLE = 'receipt_splits'
 export interface HistoryEntry {
   id: string
   created_at: string
+  title?: string
   total: number
   people: string[]
 }
@@ -54,6 +55,8 @@ export async function checkUrlForSplit() {
   }
 }
 
+const WABWAY_URL = 'https://audio.wabble.ca'
+
 export async function saveSplit(
   receipt?: Receipt,
   people?: Person[],
@@ -66,41 +69,46 @@ export async function saveSplit(
   const a = assignments ?? store.assignments
   const id = splitId ?? store.splitId
 
-  const rawAssignments: Record<string, number[]> = {}
-  Object.entries(a).forEach(([k, v]) => { rawAssignments[k] = v })
+  const rawAssignments: Record<string, Record<string, number>> = {}
+  Object.entries(a).forEach(([k, v]) => { rawAssignments[k] = v as Record<string, number> })
 
-  const now = new Date()
-  const expiresAt = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000).toISOString()
+  const { approvals: rawApprovals, paid: rawPaid, history } = store
+  const approvalsOut: Record<string, boolean> = {}
+  Object.entries(rawApprovals).forEach(([k, v]) => { approvalsOut[k] = v })
+  const paidOut: Record<string, boolean> = {}
+  Object.entries(rawPaid).forEach(([k, v]) => { paidOut[k] = v })
 
-  const payload = {
-    receipt: r,
-    people: p,
-    assignments: rawAssignments,
-    expires_at: expiresAt,
-    updated_at: now.toISOString(),
+  const res = await fetch(`${WABWAY_URL}/receipt/save`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      receipt: r, people: p, assignments: rawAssignments,
+      approvals: approvalsOut, paid: paidOut, history, split_id: id,
+    }),
+  })
+
+  if (!res.ok) {
+    const detail = await res.json().then(d => d.detail).catch(() => res.statusText)
+    throw new Error(detail)
   }
 
-  if (id) {
-    const { error } = await supabase.from(TABLE).update(payload).eq('id', id)
-    if (error) throw error
-    return id
-  } else {
-    const { data, error } = await supabase.from(TABLE).insert(payload).select().single()
-    if (error) throw error
-    store.setSplitId(data.id)
-    saveToLocalHistory(data as { id: string; created_at: string }, r.total, p.map(pp => pp.name))
-    return data.id as string
+  const row = await res.json() as { id: string; created_at: string }
+  if (!id) {
+    store.setSplitId(row.id)
+    saveToLocalHistory(row, r.total, p.map(pp => pp.name), r.title)
   }
+  return row.id
 }
 
 function saveToLocalHistory(
   row: { id: string; created_at: string },
   total: number,
   names: string[],
+  title?: string,
 ) {
   try {
     const hist = JSON.parse(localStorage.getItem('receipt_history') ?? '[]') as HistoryEntry[]
-    hist.unshift({ id: row.id, created_at: row.created_at, total, people: names })
+    hist.unshift({ id: row.id, created_at: row.created_at, total, people: names, title })
     localStorage.setItem('receipt_history', JSON.stringify(hist.slice(0, 30)))
   } catch { /* ignore */ }
 }
