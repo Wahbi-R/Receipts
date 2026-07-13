@@ -192,7 +192,7 @@ export default function SummaryScreen() {
       {/* Grand total */}
       <div className="rounded-2xl bg-white dark:bg-gray-800 shadow-sm px-4 py-3 flex justify-between font-bold">
         <span>Total</span>
-        <span>${receipt.total.toFixed(2)}</span>
+        <span>${totals.reduce((s, t) => s + t.total, 0).toFixed(2)}</span>
       </div>
 
       {/* Share link */}
