@@ -33,12 +33,12 @@ function NumericInput({
 export default function ItemsScreen() {
   const receipt = useSplitStore(s => s.receipt)
   const scannedSubtotal = useSplitStore(s => s.scannedSubtotal)
-  const imageBase64 = useSplitStore(s => s.imageBase64)
-  const mediaType = useSplitStore(s => s.mediaType)
+  const images = useSplitStore(s => s.images)
   const { updateItemField, removeItem, addItem, updateMeta, setScreen, setReceipt, setTitle } = useSplitStore()
 
   const [showImage, setShowImage] = useState(false)
   const [lightbox, setLightbox] = useState(false)
+  const [imageIndex, setImageIndex] = useState(0)
   const importRef = useRef<HTMLInputElement>(null)
 
   const handleExport = () => {
@@ -129,12 +129,12 @@ export default function ItemsScreen() {
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Edit anything that looks wrong</p>
         </div>
         <div className="flex gap-1.5 shrink-0 mt-1">
-          {imageBase64 && (
+          {images.length > 0 && (
             <button
               onClick={() => setShowImage(v => !v)}
               className="text-xs px-2.5 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 font-semibold transition-colors"
             >
-              {showImage ? '🙈' : '📷'}
+              {showImage ? '🙈' : '📷'}{images.length > 1 ? ` ${images.length}` : ''}
             </button>
           )}
           <button
@@ -156,36 +156,84 @@ export default function ItemsScreen() {
       </div>
 
       {/* Receipt image toggle */}
-      {showImage && imageBase64 && (
-        <div className="rounded-2xl overflow-hidden bg-white dark:bg-gray-800 shadow-sm">
-          <img
-            src={`data:${mediaType};base64,${imageBase64}`}
-            alt="Receipt"
-            className="w-full object-contain max-h-96 cursor-zoom-in"
-            onClick={() => setLightbox(true)}
-          />
-        </div>
-      )}
+      {showImage && images.length > 0 && (() => {
+        const idx = Math.min(imageIndex, images.length - 1)
+        const img = images[idx]
+        return (
+          <div className="rounded-2xl overflow-hidden bg-white dark:bg-gray-800 shadow-sm">
+            <img
+              src={`data:${img.mediaType};base64,${img.base64}`}
+              alt="Receipt"
+              className="w-full object-contain max-h-96 cursor-zoom-in"
+              onClick={() => setLightbox(true)}
+            />
+            {images.length > 1 && (
+              <div className="flex items-center justify-between px-3 py-2 border-t border-gray-100 dark:border-gray-700">
+                <button
+                  onClick={() => setImageIndex(i => Math.max(0, i - 1))}
+                  disabled={idx === 0}
+                  className="px-2 py-0.5 text-sm rounded text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 disabled:opacity-30 transition-colors"
+                >
+                  ←
+                </button>
+                <span className="text-xs text-gray-400">{idx + 1} / {images.length}</span>
+                <button
+                  onClick={() => setImageIndex(i => Math.min(images.length - 1, i + 1))}
+                  disabled={idx === images.length - 1}
+                  className="px-2 py-0.5 text-sm rounded text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 disabled:opacity-30 transition-colors"
+                >
+                  →
+                </button>
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Lightbox */}
-      {lightbox && imageBase64 && (
-        <div
-          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
-          onClick={() => setLightbox(false)}
-        >
-          <img
-            src={`data:${mediaType};base64,${imageBase64}`}
-            alt="Receipt"
-            className="max-w-full max-h-full object-contain rounded-lg"
-          />
-          <button
-            className="absolute top-4 right-4 text-white/70 hover:text-white text-2xl leading-none"
+      {lightbox && images.length > 0 && (() => {
+        const idx = Math.min(imageIndex, images.length - 1)
+        const img = images[idx]
+        return (
+          <div
+            className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
             onClick={() => setLightbox(false)}
           >
-            ✕
-          </button>
-        </div>
-      )}
+            <img
+              src={`data:${img.mediaType};base64,${img.base64}`}
+              alt="Receipt"
+              className="max-w-full max-h-full object-contain rounded-lg"
+            />
+            {images.length > 1 && (
+              <>
+                <button
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white text-4xl leading-none"
+                  onClick={e => { e.stopPropagation(); setImageIndex(i => Math.max(0, i - 1)) }}
+                  disabled={idx === 0}
+                >
+                  ‹
+                </button>
+                <button
+                  className="absolute right-12 top-1/2 -translate-y-1/2 text-white/70 hover:text-white text-4xl leading-none"
+                  onClick={e => { e.stopPropagation(); setImageIndex(i => Math.min(images.length - 1, i + 1)) }}
+                  disabled={idx === images.length - 1}
+                >
+                  ›
+                </button>
+                <span className="absolute bottom-6 left-1/2 -translate-x-1/2 text-white/50 text-sm">
+                  {idx + 1} / {images.length}
+                </span>
+              </>
+            )}
+            <button
+              className="absolute top-4 right-4 text-white/70 hover:text-white text-2xl leading-none"
+              onClick={() => setLightbox(false)}
+            >
+              ✕
+            </button>
+          </div>
+        )
+      })()}
 
       {/* Title */}
       <input

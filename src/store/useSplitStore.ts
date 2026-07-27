@@ -22,13 +22,17 @@ function splitEqually(quantity: number, pids: number[]): Record<number, number> 
   return w
 }
 
+export interface ReceiptImage {
+  base64: string
+  mediaType: string
+}
+
 interface SplitStore {
   screen: Screen
   maxStepIdx: number
   loading: boolean
   loadingMsg: string
-  imageBase64: string | null
-  mediaType: string
+  images: ReceiptImage[]
   receipt: Receipt
   scannedSubtotal: number
   people: Person[]
@@ -43,7 +47,8 @@ interface SplitStore {
 
   setScreen(screen: Screen): void
   setLoading(loading: boolean, msg?: string): void
-  setImage(base64: string, mediaType: string): void
+  addImage(base64: string, mediaType: string): void
+  removeImage(index: number): void
   setReceipt(receipt: Receipt): void
   updateItemField(id: number, field: keyof Pick<Item, 'name' | 'quantity' | 'total_price'>, value: string | number): void
   removeItem(id: number): void
@@ -69,8 +74,7 @@ export const useSplitStore = create<SplitStore>((set, _get) => ({
   maxStepIdx: 0,
   loading: false,
   loadingMsg: 'Loading…',
-  imageBase64: null,
-  mediaType: 'image/jpeg',
+  images: [],
   receipt: emptyReceipt(),
   scannedSubtotal: 0,
   people: [],
@@ -90,7 +94,9 @@ export const useSplitStore = create<SplitStore>((set, _get) => ({
 
   setLoading: (loading, msg = 'Loading…') => set({ loading, loadingMsg: msg }),
 
-  setImage: (base64, mediaType) => set({ imageBase64: base64, mediaType }),
+  addImage: (base64, mediaType) => set(s => ({ images: [...s.images, { base64, mediaType }] })),
+
+  removeImage: (index) => set(s => ({ images: s.images.filter((_, i) => i !== index) })),
 
   setReceipt: (receipt) => {
     const assignments: Assignments = {}
@@ -247,7 +253,7 @@ export const useSplitStore = create<SplitStore>((set, _get) => ({
   reset: () => set({
     screen: 'upload',
     maxStepIdx: 0,
-    imageBase64: null,
+    images: [],
     receipt: emptyReceipt(),
     scannedSubtotal: 0,
     people: [],
