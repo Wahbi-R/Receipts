@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { useSplitStore } from '../store/useSplitStore'
+import type { ReceiptImage } from '../store/useSplitStore'
 import type { Receipt, Person, Assignments, SupabaseSplit } from '../types'
 
 export const SUPABASE_URL = 'https://syocailabsljnapwvaox.supabase.co'
@@ -27,11 +28,46 @@ export function loadHistory(): HistoryEntry[] {
   }
 }
 
+const IMAGE_BUCKET = 'receipt-images'
+
+export async function uploadImages(splitId: string, images: ReceiptImage[]): Promise<void> {
+  for (let i = 0; i < images.length; i++) {
+    const img = images[i]
+    const ext = img.mediaType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg'
+    const path = `${splitId}/${i}.${ext}`
+    const bytes = Uint8Array.from(atob(img.base64), c => c.charCodeAt(0))
+    const blob = new Blob([bytes], { type: img.mediaType })
+    const { error } = await supabase.storage.from(IMAGE_BUCKET).upload(path, blob, { upsert: true })
+    if (error) console.warn('Image upload failed:', error.message)
+  }
+}
+
+async function fetchSharedImages(splitId: string): Promise<ReceiptImage[]> {
+  const { data: files, error } = await supabase.storage.from(IMAGE_BUCKET).list(splitId)
+  if (error || !files?.length) return []
+
+  const images: ReceiptImage[] = []
+  for (const file of files) {
+    const path = `${splitId}/${file.name}`
+    const { data, error: dlError } = await supabase.storage.from(IMAGE_BUCKET).download(path)
+    if (dlError || !data) continue
+    const arrayBuffer = await data.arrayBuffer()
+    const bytes = new Uint8Array(arrayBuffer)
+    let binary = ''
+    for (let j = 0; j < bytes.byteLength; j++) binary += String.fromCharCode(bytes[j])
+    const base64 = btoa(binary)
+    const ext = file.name.split('.').pop() ?? 'jpg'
+    const mediaType = ext === 'jpg' ? 'image/jpeg' : `image/${ext}`
+    images.push({ base64, mediaType })
+  }
+  return images
+}
+
 export async function checkUrlForSplit() {
   const id = new URLSearchParams(window.location.search).get('s')
   if (!id) return
 
-  const { setLoading, loadFromSupabase } = useSplitStore.getState()
+  const { setLoading, loadFromSupabase, setImages } = useSplitStore.getState()
   setLoading(true, 'Loading split…')
 
   try {
@@ -47,6 +83,8 @@ export async function checkUrlForSplit() {
       history.replaceState({}, '', window.location.pathname)
     } else {
       loadFromSupabase(data as SupabaseSplit)
+      const images = await fetchSharedImages(id)
+      if (images.length) setImages(images)
     }
   } catch (e: unknown) {
     alert('Failed to load split: ' + (e as Error).message)
