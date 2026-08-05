@@ -175,18 +175,16 @@ export const useSplitStore = create<SplitStore>((set, _get) => ({
 
   toggleAssignment: (itemId, personId) => set(s => {
     const item = s.receipt.items.find(i => i.id === itemId)
+    const qty = item?.quantity ?? 1
     const weights = { ...(s.assignments[itemId] ?? {}) }
     if (weights[personId] !== undefined) {
       delete weights[personId]
-      return { assignments: { ...s.assignments, [itemId]: weights } }
+    } else {
+      weights[personId] = 1
     }
-    weights[personId] = 1
     const assigned = Object.keys(weights).map(Number)
-    if (item && assigned.length > item.quantity) {
-      const equal = splitEqually(item.quantity, assigned)
-      return { assignments: { ...s.assignments, [itemId]: equal } }
-    }
-    return { assignments: { ...s.assignments, [itemId]: weights } }
+    if (!assigned.length) return { assignments: { ...s.assignments, [itemId]: {} } }
+    return { assignments: { ...s.assignments, [itemId]: splitEqually(qty, assigned) } }
   }),
 
   setWeight: (itemId, personId, weight) => set(s => {
