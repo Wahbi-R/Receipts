@@ -38,33 +38,21 @@ export default function UploadScreen() {
     const { images: imgs } = useSplitStore.getState()
     if (!imgs.length) return
 
-    setLoading(true, imgs.length > 1 ? `Scanning image 1 of ${imgs.length}…` : 'Scanning receipt…')
+    setLoading(true, imgs.length > 1 ? `Scanning ${imgs.length} images…` : 'Scanning receipt…')
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let allItems: any[] = []
-      let mergedMeta = { subtotal: 0, discount: 0, tax: 0, tip: 0, total: 0, title: undefined as string | undefined }
-
-      for (let i = 0; i < imgs.length; i++) {
-        if (imgs.length > 1) {
-          useSplitStore.getState().setLoading(true, `Scanning image ${i + 1} of ${imgs.length}…`)
-        }
-        const { base64, mediaType } = imgs[i]
-        const data = await scanReceipt(base64, mediaType)
-        allItems = [...allItems, ...(data.items ?? [])]
-        mergedMeta.subtotal = Math.max(mergedMeta.subtotal, data.subtotal ?? 0)
-        mergedMeta.discount = Math.max(mergedMeta.discount, data.discount ?? 0)
-        mergedMeta.tax = Math.max(mergedMeta.tax, data.tax ?? 0)
-        mergedMeta.tip = Math.max(mergedMeta.tip, data.tip ?? 0)
-        mergedMeta.total = Math.max(mergedMeta.total, data.total ?? 0)
-        if (data.title) mergedMeta.title = data.title
-      }
+      const data = await scanReceipt(imgs)
 
       const nextId = { current: 0 }
       const receipt = {
-        ...mergedMeta,
+        title:    data.title,
+        subtotal: data.subtotal ?? 0,
+        discount: data.discount ?? 0,
+        tax:      data.tax ?? 0,
+        tip:      data.tip ?? 0,
+        total:    data.total ?? 0,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        items: allItems.map((item: any) => ({
-          id: nextId.current++,
+        items: (data.items ?? []).map((item: any) => ({
+          id:          nextId.current++,
           name:        String(item.name ?? 'Unknown item'),
           quantity:    Number(item.quantity   ?? 1),
           unit_price:  Number(item.unit_price  ?? 0),
