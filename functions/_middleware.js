@@ -2,15 +2,13 @@ const SUPABASE_URL = 'https://syocailabsljnapwvaox.supabase.co'
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5b2NhaWxhYnNsam5hcHd2YW94Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM4NzQ1MzcsImV4cCI6MjA5OTQ1MDUzN30.7AdIdZDPexgCJKMl0ma76kRFZFy0UkQDmlIPFYNDyU8'
 const BUCKET = 'receipt-images'
 
-const BOT_UA = /bot|crawler|spider|preview|slack|discord|telegram|whatsapp|facebookexternalhit|twitterbot|linkedinbot|applebot|iMessage|curl|wget|python/i
-
 export async function onRequest(context) {
   const { request, next } = context
   const url = new URL(request.url)
   const splitId = url.searchParams.get('s')
-  const ua = request.headers.get('User-Agent') || ''
 
-  if (!splitId || !BOT_UA.test(ua)) {
+  // Real browser navigations send Sec-Fetch-Mode: navigate; bots don't
+  if (!splitId || request.headers.get('Sec-Fetch-Mode') === 'navigate') {
     return next()
   }
 
