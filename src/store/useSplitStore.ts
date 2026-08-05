@@ -50,7 +50,8 @@ interface SplitStore {
   addImage(base64: string, mediaType: string): void
   removeImage(index: number): void
   setReceipt(receipt: Receipt): void
-  updateItemField(id: number, field: keyof Pick<Item, 'name' | 'quantity' | 'total_price'>, value: string | number): void
+  updateItemField(id: number, field: keyof Pick<Item, 'name' | 'quantity' | 'unit_price' | 'total_price'>, value: string | number): void
+  updateItemFields(id: number, fields: Partial<Pick<Item, 'quantity' | 'unit_price' | 'total_price'>>): void
   removeItem(id: number): void
   addItem(): void
   setTitle(title: string): void
@@ -110,6 +111,15 @@ export const useSplitStore = create<SplitStore>((set, _get) => ({
       ...s.receipt,
       items: s.receipt.items.map(item =>
         item.id === id ? { ...item, [field]: value } : item
+      ),
+    },
+  })),
+
+  updateItemFields: (id, fields) => set(s => ({
+    receipt: {
+      ...s.receipt,
+      items: s.receipt.items.map(item =>
+        item.id === id ? { ...item, ...fields } : item
       ),
     },
   })),
