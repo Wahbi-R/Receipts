@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSplitStore, calcPersonTotals } from '../store/useSplitStore'
 import { saveSplit, uploadImages } from '../lib/supabase'
 import type { HistoryEntry } from '../types'
@@ -52,6 +52,19 @@ export default function SummaryScreen() {
   const { reset, setLoading, setApproval, setPaid, addHistory } = useSplitStore()
   const [shareUrl, setShareUrl] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [lightbox, setLightbox] = useState(false)
+  const [lightboxIndex, setLightboxIndex] = useState(0)
+
+  useEffect(() => {
+    if (!lightbox) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLightbox(false)
+      if (e.key === 'ArrowLeft') setLightboxIndex(i => Math.max(0, i - 1))
+      if (e.key === 'ArrowRight') setLightboxIndex(i => Math.min(images.length - 1, i + 1))
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [lightbox, images.length])
 
   const totals = calcPersonTotals(receipt, people, assignments)
 
@@ -118,6 +131,66 @@ export default function SummaryScreen() {
         <h1 className="text-2xl font-bold tracking-tight">{receipt.title || 'Summary'}</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Here's who owes what</p>
       </div>
+
+      {/* Receipt image strip */}
+      {images.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+          {images.map((img, i) => (
+            <button
+              key={i}
+              onClick={() => { setLightboxIndex(i); setLightbox(true) }}
+              className="shrink-0 w-24 h-24 rounded-xl overflow-hidden border-2 border-transparent hover:border-emerald-400 active:scale-95 transition-all focus:outline-none focus:border-emerald-400"
+            >
+              <img
+                src={`data:${img.mediaType};base64,${img.base64}`}
+                alt={`Receipt ${i + 1}`}
+                className="w-full h-full object-cover"
+              />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Lightbox */}
+      {lightbox && images.length > 0 && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setLightbox(false)}
+        >
+          <img
+            src={`data:${images[lightboxIndex].mediaType};base64,${images[lightboxIndex].base64}`}
+            alt="Receipt"
+            className="max-w-full max-h-full object-contain rounded-lg"
+          />
+          {images.length > 1 && (
+            <>
+              <button
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white text-4xl leading-none disabled:opacity-20"
+                onClick={e => { e.stopPropagation(); setLightboxIndex(i => Math.max(0, i - 1)) }}
+                disabled={lightboxIndex === 0}
+              >
+                ‹
+              </button>
+              <button
+                className="absolute right-12 top-1/2 -translate-y-1/2 text-white/70 hover:text-white text-4xl leading-none disabled:opacity-20"
+                onClick={e => { e.stopPropagation(); setLightboxIndex(i => Math.min(images.length - 1, i + 1)) }}
+                disabled={lightboxIndex === images.length - 1}
+              >
+                ›
+              </button>
+              <span className="absolute bottom-6 left-1/2 -translate-x-1/2 text-white/50 text-sm">
+                {lightboxIndex + 1} / {images.length}
+              </span>
+            </>
+          )}
+          <button
+            className="absolute top-4 right-4 text-white/70 hover:text-white text-2xl leading-none"
+            onClick={() => setLightbox(false)}
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {totals.map(({ person, items, extraShare, total }) => {
         const isApproved = approvals[person.id]
