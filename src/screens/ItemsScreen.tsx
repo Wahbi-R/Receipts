@@ -34,7 +34,7 @@ export default function ItemsScreen() {
   const receipt = useSplitStore(s => s.receipt)
   const scannedSubtotal = useSplitStore(s => s.scannedSubtotal)
   const images = useSplitStore(s => s.images)
-  const { updateItemField, removeItem, addItem, updateMeta, setScreen, setReceipt, setTitle } = useSplitStore()
+  const { updateItemField, updateItemFields, removeItem, addItem, updateMeta, setScreen, setReceipt, setTitle } = useSplitStore()
 
   const [showImage, setShowImage] = useState(false)
   const [lightbox, setLightbox] = useState(false)
@@ -258,9 +258,10 @@ export default function ItemsScreen() {
           <thead>
             <tr className="border-b border-gray-100 dark:border-gray-700">
               <th className="text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400">Item</th>
-              <th className="text-right px-2 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 w-12">Qty</th>
-              <th className="text-right px-2 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 w-20">Price</th>
-              <th className="w-8" />
+              <th className="text-right px-2 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 w-10">Qty</th>
+              <th className="text-right px-2 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 w-16">Each</th>
+              <th className="text-right px-2 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 w-16">Total</th>
+              <th className="w-7" />
             </tr>
           </thead>
           <tbody>
@@ -280,14 +281,31 @@ export default function ItemsScreen() {
                     value={item.quantity}
                     min={0.5}
                     step={0.5}
-                    onChange={e => updateItemField(item.id, 'quantity', parseFloat(e.target.value) || 1)}
+                    onChange={e => {
+                      const qty = parseFloat(e.target.value) || 1
+                      const total = Math.round(item.unit_price * qty * 100) / 100
+                      updateItemFields(item.id, { quantity: qty, total_price: total })
+                    }}
+                    className="w-full bg-transparent rounded-md px-1 py-1 text-right border border-transparent focus:border-emerald-500 focus:bg-emerald-50 dark:focus:bg-emerald-950/40 outline-none transition-colors"
+                  />
+                </td>
+                <td className="px-1 py-1">
+                  <NumericInput
+                    value={item.unit_price}
+                    onChange={v => {
+                      const total = Math.round(v * item.quantity * 100) / 100
+                      updateItemFields(item.id, { unit_price: v, total_price: total })
+                    }}
                     className="w-full bg-transparent rounded-md px-1 py-1 text-right border border-transparent focus:border-emerald-500 focus:bg-emerald-50 dark:focus:bg-emerald-950/40 outline-none transition-colors"
                   />
                 </td>
                 <td className="px-1 py-1">
                   <NumericInput
                     value={item.total_price}
-                    onChange={v => updateItemField(item.id, 'total_price', v)}
+                    onChange={v => {
+                      const unit = item.quantity > 0 ? Math.round((v / item.quantity) * 100) / 100 : 0
+                      updateItemFields(item.id, { total_price: v, unit_price: unit })
+                    }}
                     className="w-full bg-transparent rounded-md px-1 py-1 text-right border border-transparent focus:border-emerald-500 focus:bg-emerald-50 dark:focus:bg-emerald-950/40 outline-none transition-colors"
                   />
                 </td>
