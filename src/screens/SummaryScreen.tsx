@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useSplitStore, calcPersonTotals } from '../store/useSplitStore'
-import { saveSplit } from '../lib/supabase'
+import { saveSplit, uploadImages } from '../lib/supabase'
 import type { HistoryEntry } from '../types'
 
 function HistoryTimeline({ entries }: { entries: HistoryEntry[] }) {
@@ -48,6 +48,7 @@ export default function SummaryScreen() {
   const paid = useSplitStore(s => s.paid)
   const history = useSplitStore(s => s.history)
   const splitId = useSplitStore(s => s.splitId)
+  const images = useSplitStore(s => s.images)
   const { reset, setLoading, setApproval, setPaid, addHistory } = useSplitStore()
   const [shareUrl, setShareUrl] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -79,8 +80,13 @@ export default function SummaryScreen() {
   const handleShare = async () => {
     setLoading(true, 'Saving split…')
     try {
-      if (!splitId) addHistory('Split created')
+      const isNew = !splitId
+      if (isNew) addHistory('Split created')
       const id = await saveSplit(receipt, people, assignments, splitId ?? undefined)
+      if (isNew && images.length) {
+        setLoading(true, 'Uploading receipt images…')
+        await uploadImages(id, images)
+      }
       const url = `${window.location.origin}${window.location.pathname}?s=${id}`
       setShareUrl(url)
       await navigator.clipboard.writeText(url)

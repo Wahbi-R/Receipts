@@ -65,6 +65,7 @@ interface SplitStore {
   setPaid(personId: number, value: boolean): void
   addHistory(msg: string): void
   setSplitId(id: string): void
+  setImages(images: ReceiptImage[]): void
   loadFromSupabase(data: SupabaseSplit): void
   reset(): void
 }
@@ -220,6 +221,8 @@ export const useSplitStore = create<SplitStore>((set, _get) => ({
   })),
 
   setSplitId: (id) => set({ splitId: id }),
+
+  setImages: (images) => set({ images }),
 
   loadFromSupabase: (data) => {
     const assignments: Assignments = {}
