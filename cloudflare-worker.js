@@ -32,7 +32,7 @@ export default {
 
       const [splitRes, filesRes] = await Promise.all([
         fetch(
-          `${SUPABASE_URL}/rest/v1/receipt_splits?id=eq.${splitId}&expires_at=gt.${new Date().toISOString()}&select=receipt,people&limit=1`,
+          `${SUPABASE_URL}/rest/v1/receipt_splits?id=eq.${splitId}&select=receipt,people&limit=1`,
           { headers }
         ),
         fetch(`${SUPABASE_URL}/storage/v1/object/list/${BUCKET}`, {

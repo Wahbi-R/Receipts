@@ -21,8 +21,7 @@ export interface HistoryEntry {
 export function loadHistory(): HistoryEntry[] {
   try {
     const raw = JSON.parse(localStorage.getItem('receipt_history') ?? '[]')
-    const cutoff = Date.now() - 5 * 24 * 60 * 60 * 1000
-    return (raw as HistoryEntry[]).filter(e => new Date(e.created_at).getTime() > cutoff)
+    return raw as HistoryEntry[]
   } catch {
     return []
   }
@@ -75,11 +74,10 @@ export async function checkUrlForSplit() {
       .from(TABLE)
       .select('*')
       .eq('id', id)
-      .gt('expires_at', new Date().toISOString())
       .single()
 
     if (error || !data) {
-      alert("This split link has expired or doesn't exist.")
+      alert("This split link doesn't exist.")
       history.replaceState({}, '', window.location.pathname)
     } else {
       loadFromSupabase(data as SupabaseSplit)
