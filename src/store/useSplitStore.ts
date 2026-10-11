@@ -4,7 +4,12 @@ import type { Item, Receipt, Person, Assignments, Screen, SupabaseSplit, History
 export const PERSON_COLORS = [
   '#EF4444', '#3B82F6', '#10B981', '#F59E0B',
   '#8B5CF6', '#EC4899', '#06B6D4', '#F97316',
+  '#84CC16', '#6366F1', '#14B8A6', '#E11D48',
+  '#A855F7', '#0EA5E9', '#D97706', '#64748B',
 ]
+
+/** Colors repeat after the palette runs out, so there's no cap on people. */
+const personColor = (index: number) => PERSON_COLORS[index % PERSON_COLORS.length]
 
 const emptyReceipt = (): Receipt => ({
   items: [], subtotal: 0, discount: 0, tax: 0, tip: 0, total: 0,
@@ -152,10 +157,9 @@ export const useSplitStore = create<SplitStore>((set, _get) => ({
   })),
 
   addPerson: (name) => set(s => {
-    if (s.people.length >= 8) return s
     const id = s._nextPersonId
     return {
-      people: [...s.people, { id, name, color: PERSON_COLORS[s.people.length] }],
+      people: [...s.people, { id, name, color: personColor(s.people.length) }],
       _nextPersonId: id + 1,
     }
   }),
@@ -163,7 +167,7 @@ export const useSplitStore = create<SplitStore>((set, _get) => ({
   removePerson: (id) => set(s => {
     const people = s.people
       .filter(p => p.id !== id)
-      .map((p, i) => ({ ...p, color: PERSON_COLORS[i] }))
+      .map((p, i) => ({ ...p, color: personColor(i) }))
     const assignments: Assignments = {}
     Object.entries(s.assignments).forEach(([k, weights]) => {
       const next = { ...weights }
