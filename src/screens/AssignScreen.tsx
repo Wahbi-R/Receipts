@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { useSplitStore, calcPersonTotals } from '../store/useSplitStore'
+import { useSplitStore, calcPersonTotals, syncSnapshot } from '../store/useSplitStore'
 import { saveSplit } from '../lib/supabase'
 
 export default function AssignScreen() {
@@ -25,7 +25,10 @@ export default function AssignScreen() {
     if (!isShared) return
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
-      const { receipt, people, assignments, splitId } = useSplitStore.getState()
+      const state = useSplitStore.getState()
+      // Skip when nothing changed since the last sync (e.g. the change came in live from someone else)
+      if (state._synced && syncSnapshot(state).assignments === state._synced.assignments) return
+      const { receipt, people, assignments, splitId } = state
       saveSplit(receipt, people, assignments, splitId ?? undefined).catch(console.warn)
     }, 1500)
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }

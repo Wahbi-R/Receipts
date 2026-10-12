@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { useSplitStore } from '../store/useSplitStore'
+import { useSplitStore, syncSnapshot } from '../store/useSplitStore'
 import type { ReceiptImage } from '../store/useSplitStore'
 import type { Receipt, Person, Assignments, SupabaseSplit } from '../types'
 
@@ -114,6 +114,7 @@ export async function saveSplit(
   const paidOut: Record<string, boolean> = {}
   Object.entries(rawPaid).forEach(([k, v]) => { paidOut[k] = v })
 
+  const sent = syncSnapshot({ receipt: r, people: p, assignments: a, approvals: rawApprovals, paid: rawPaid, history })
   const res = await fetch(`${WABWAY_URL}/receipt/save`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -129,6 +130,7 @@ export async function saveSplit(
   }
 
   const row = await res.json() as { id: string; created_at: string }
+  store.markSynced(sent)
   if (!id) {
     store.setSplitId(row.id)
     saveToLocalHistory(row, r.total, p.map(pp => pp.name), r.title)
@@ -147,4 +149,22 @@ function saveToLocalHistory(
     hist.unshift({ id: row.id, created_at: row.created_at, total, people: names, title })
     localStorage.setItem('receipt_history', JSON.stringify(hist.slice(0, 30)))
   } catch { /* ignore */ }
+}
+
+/** Keep this device in sync with everyone else viewing the split. Returns an unsubscribe fn. */
+export function subscribeToSplit(splitId: string): () => void {
+  const channel = supabase
+    .channel(`split-${splitId}`)
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: TABLE, filter: `id=eq.${splitId}` },
+      // Refetch rather than trusting payload.new: Postgres leaves large unchanged
+      // jsonb columns (e.g. the receipt) out of change events.
+      async () => {
+        const { data } = await supabase.from(TABLE).select('*').eq('id', splitId).single()
+        if (data) useSplitStore.getState().applyRemoteSplit(data as SupabaseSplit)
+      },
+    )
+    .subscribe()
+  return () => { supabase.removeChannel(channel) }
 }

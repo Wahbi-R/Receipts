@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useSplitStore } from './store/useSplitStore'
-import { checkUrlForSplit } from './lib/supabase'
+import { checkUrlForSplit, subscribeToSplit } from './lib/supabase'
 import Header from './components/Header'
 import LoadingOverlay from './components/LoadingOverlay'
 import UploadScreen from './screens/UploadScreen'
@@ -12,8 +12,10 @@ import HistoryScreen from './screens/HistoryScreen'
 
 export default function App() {
   const screen = useSplitStore(s => s.screen)
+  const splitId = useSplitStore(s => s.splitId)
 
   useEffect(() => { checkUrlForSplit() }, [])
+  useEffect(() => (splitId ? subscribeToSplit(splitId) : undefined), [splitId])
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
