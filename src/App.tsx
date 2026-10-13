@@ -1,6 +1,8 @@
 import { useEffect } from 'react'
 import { useSplitStore } from './store/useSplitStore'
 import { checkUrlForSplit, subscribeToSplit } from './lib/supabase'
+import { startAutosave } from './lib/autosave'
+import Toast from './components/Toast'
 import Header from './components/Header'
 import LoadingOverlay from './components/LoadingOverlay'
 import UploadScreen from './screens/UploadScreen'
@@ -15,11 +17,13 @@ export default function App() {
   const splitId = useSplitStore(s => s.splitId)
 
   useEffect(() => { checkUrlForSplit() }, [])
+  useEffect(() => startAutosave(), [])
   useEffect(() => (splitId ? subscribeToSplit(splitId) : undefined), [splitId])
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
       <LoadingOverlay />
+      <Toast />
       <Header />
       <main className="max-w-md mx-auto px-4 py-5">
         {screen === 'upload'  && <UploadScreen />}

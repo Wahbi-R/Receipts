@@ -1,16 +1,14 @@
-import { useEffect, useRef } from 'react'
-import { useSplitStore, calcPersonTotals, syncSnapshot } from '../store/useSplitStore'
-import { saveSplit } from '../lib/supabase'
+import { useSplitStore, calcPersonTotals } from '../store/useSplitStore'
+import { useFlash, FLASH_CLASS } from '../hooks/useFlash'
 
 export default function AssignScreen() {
   const receipt = useSplitStore(s => s.receipt)
   const people = useSplitStore(s => s.people)
   const assignments = useSplitStore(s => s.assignments)
-  const isShared = useSplitStore(s => s.isSharedSplit)
   const { toggleAssignment, setWeight, splitItemEqually, assignAll, setScreen } = useSplitStore()
 
   const totals = calcPersonTotals(receipt, people, assignments)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const flashed = useFlash('items')
 
   const issueItems = receipt.items.filter(item => {
     const weights = assignments[item.id] ?? {}
@@ -21,18 +19,6 @@ export default function AssignScreen() {
   })
   const hasIssues = issueItems.length > 0
 
-  useEffect(() => {
-    if (!isShared) return
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => {
-      const state = useSplitStore.getState()
-      // Skip when nothing changed since the last sync (e.g. the change came in live from someone else)
-      if (state._synced && syncSnapshot(state).assignments === state._synced.assignments) return
-      const { receipt, people, assignments, splitId } = state
-      saveSplit(receipt, people, assignments, splitId ?? undefined).catch(console.warn)
-    }, 1500)
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
-  }, [assignments, isShared])
 
   return (
     <div className="flex flex-col gap-4">
@@ -58,7 +44,7 @@ export default function AssignScreen() {
           const totalMismatch = Math.abs(totalWeight - item.quantity) > 0.01
 
           return (
-            <div key={item.id} className="rounded-2xl bg-white dark:bg-gray-800 shadow-sm px-4 py-3">
+            <div key={item.id} className={`rounded-2xl bg-white dark:bg-gray-800 shadow-sm px-4 py-3 ${flashed.has(item.id) ? FLASH_CLASS : ''}`}>
               {/* Item header */}
               <div className="flex items-baseline justify-between mb-2">
                 <span className="font-medium text-sm leading-tight">

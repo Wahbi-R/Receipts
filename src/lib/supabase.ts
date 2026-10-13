@@ -115,6 +115,7 @@ export async function saveSplit(
   Object.entries(rawPaid).forEach(([k, v]) => { paidOut[k] = v })
 
   const sent = syncSnapshot({ receipt: r, people: p, assignments: a, approvals: rawApprovals, paid: rawPaid, history })
+  store.setSaveState('saving')
   const res = await fetch(`${WABWAY_URL}/receipt/save`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -122,15 +123,17 @@ export async function saveSplit(
       receipt: r, people: p, assignments: rawAssignments,
       approvals: approvalsOut, paid: paidOut, history, split_id: id,
     }),
-  })
+  }).catch(err => { store.setSaveState('error'); throw err })
 
   if (!res.ok) {
+    store.setSaveState('error')
     const detail = await res.json().then(d => d.detail).catch(() => res.statusText)
     throw new Error(detail)
   }
 
   const row = await res.json() as { id: string; created_at: string }
   store.markSynced(sent)
+  store.setSaveState('saved')
   if (!id) {
     store.setSplitId(row.id)
     saveToLocalHistory(row, r.total, p.map(pp => pp.name), r.title)

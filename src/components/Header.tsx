@@ -1,5 +1,6 @@
 import { useSplitStore, STEP_ORDER } from '../store/useSplitStore'
 import type { Screen } from '../types'
+import SaveStatus from './SaveStatus'
 
 const STEPS: { id: Screen; label: string }[] = [
   { id: 'upload',  label: 'Upload'  },
@@ -33,6 +34,8 @@ export default function Header() {
           )}
           <span className="font-bold text-lg tracking-tight">🧾 Split</span>
         </div>
+        <div className="flex items-center gap-2">
+        <SaveStatus />
         <button
           onClick={() => setScreen('history')}
           className="text-xl opacity-60 hover:opacity-100 transition-opacity p-1 rounded-lg"
@@ -40,6 +43,7 @@ export default function Header() {
         >
           🕐
         </button>
+        </div>
       </div>
       <div className="max-w-md mx-auto px-4 pb-2 flex gap-1">
         {STEPS.map((step, i) => {

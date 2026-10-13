@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useSplitStore, calcPersonTotals } from '../store/useSplitStore'
 import { saveSplit, uploadImages } from '../lib/supabase'
 import type { HistoryEntry } from '../types'
+import { useFlash, FLASH_CLASS } from '../hooks/useFlash'
 
 function HistoryTimeline({ entries }: { entries: HistoryEntry[] }) {
   const sorted = [...entries].reverse()
@@ -67,27 +68,20 @@ export default function SummaryScreen() {
   }, [lightbox, images.length])
 
   const totals = calcPersonTotals(receipt, people, assignments)
+  const flashedPeople = useFlash('people')
 
-  const autoSave = async () => {
-    const store = useSplitStore.getState()
-    if (!store.splitId) return
-    await saveSplit(receipt, people, assignments, store.splitId).catch(console.warn)
-  }
-
-  const handleApproval = async (personId: number) => {
+  const handleApproval = (personId: number) => {
     const next = !approvals[personId]
     const name = people.find(p => p.id === personId)?.name ?? 'Someone'
     setApproval(personId, next)
     addHistory(next ? `${name} approved their share` : `${name} removed their approval`)
-    await autoSave()
   }
 
-  const handlePaid = async (personId: number) => {
+  const handlePaid = (personId: number) => {
     const next = !paid[personId]
     const name = people.find(p => p.id === personId)?.name ?? 'Someone'
     setPaid(personId, next)
     addHistory(next ? `${name} marked as paid` : `${name} unmarked as paid`)
-    await autoSave()
   }
 
   const handleShare = async () => {
@@ -196,7 +190,7 @@ export default function SummaryScreen() {
         const isApproved = approvals[person.id]
         const isPaid = paid[person.id]
         return (
-          <div key={person.id} className="rounded-2xl bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
+          <div key={person.id} className={`rounded-2xl bg-white dark:bg-gray-800 shadow-sm overflow-hidden ${flashedPeople.has(person.id) ? FLASH_CLASS : ''}`}>
             <div
               className="px-4 py-3 flex items-center justify-between"
               style={{ backgroundColor: person.color + '22' }}

@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { useSplitStore } from '../store/useSplitStore'
+import { useFlash } from '../hooks/useFlash'
 import type { Receipt } from '../types'
 
 function NumericInput({
@@ -34,6 +35,7 @@ export default function ItemsScreen() {
   const receipt = useSplitStore(s => s.receipt)
   const scannedSubtotal = useSplitStore(s => s.scannedSubtotal)
   const images = useSplitStore(s => s.images)
+  const flashed = useFlash('items')
   const { updateItemField, updateItemFields, removeItem, addItem, updateMeta, setScreen, setReceipt, setTitle } = useSplitStore()
 
   const [showImage, setShowImage] = useState(false)
@@ -266,7 +268,7 @@ export default function ItemsScreen() {
           </thead>
           <tbody>
             {receipt.items.map(item => (
-              <tr key={item.id} className="border-b border-gray-100 dark:border-gray-700 last:border-0">
+              <tr key={item.id} className={`border-b border-gray-100 dark:border-gray-700 last:border-0 transition-colors duration-700 ${flashed.has(item.id) ? 'bg-emerald-50 dark:bg-emerald-950/40' : ''}`}>
                 <td className="px-2 py-1">
                   <input
                     type="text"

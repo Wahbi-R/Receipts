@@ -78,6 +78,31 @@ function nextIds(receipt: Receipt, people: Person[]) {
   }
 }
 
+export function isDirty(s: Pick<SplitStore, SyncField | '_synced'>): boolean {
+  if (!s._synced) return false
+  const now = syncSnapshot(s)
+  return SYNC_FIELDS.some(f => now[f] !== s._synced![f])
+}
+
+export type SaveState = 'saved' | 'saving' | 'error'
+
+/** What changed in the last live update from someone else, for highlighting rows. */
+export interface Flash {
+  at: number
+  people: number[]
+  items: number[]
+}
+
+function diffIds<T extends { id: number }>(before: T[], after: T[]): number[] {
+  const prev = new Map(before.map(x => [x.id, stableJson(x)]))
+  return after.filter(x => prev.get(x.id) !== stableJson(x)).map(x => x.id)
+}
+
+function diffKeys(before: Record<number, unknown>, after: Record<number, unknown>): number[] {
+  const keys = new Set([...Object.keys(before), ...Object.keys(after)])
+  return [...keys].filter(k => stableJson(before[Number(k)]) !== stableJson(after[Number(k)])).map(Number)
+}
+
 export interface ReceiptImage {
   base64: string
   mediaType: string
@@ -100,6 +125,9 @@ interface SplitStore {
   isSharedSplit: boolean
   /** What this device last saved to / received from Supabase, per field. */
   _synced: SyncSnapshot | null
+  saveState: SaveState
+  toast: { msg: string; at: number } | null
+  flash: Flash | null
   _nextItemId: number
   _nextPersonId: number
 
@@ -128,6 +156,8 @@ interface SplitStore {
   loadFromSupabase(data: SupabaseSplit): void
   applyRemoteSplit(data: SupabaseSplit): void
   markSynced(snapshot: SyncSnapshot): void
+  setSaveState(state: SaveState): void
+  showToast(msg: string): void
   reset(): void
 }
 
@@ -147,6 +177,9 @@ export const useSplitStore = create<SplitStore>((set, _get) => ({
   splitId: null,
   isSharedSplit: false,
   _synced: null,
+  saveState: 'saved',
+  toast: null,
+  flash: null,
   _nextItemId: 0,
   _nextPersonId: 0,
 
@@ -322,8 +355,34 @@ export const useSplitStore = create<SplitStore>((set, _get) => ({
     const receipt = next.receipt ?? s.receipt
     const people = next.people ?? s.people
     const ids = nextIds(receipt, people)
+
+    const applied = Object.keys(next).length > 0
+    const flash: Flash | null = applied ? {
+      at: Date.now(),
+      people: [...new Set([
+        ...(next.people ? diffIds(s.people, next.people) : []),
+        ...(next.approvals ? diffKeys(s.approvals, next.approvals) : []),
+        ...(next.paid ? diffKeys(s.paid, next.paid) : []),
+      ])],
+      items: [...new Set([
+        ...(next.receipt ? diffIds(s.receipt.items, next.receipt.items) : []),
+        ...(next.assignments ? diffKeys(s.assignments, next.assignments) : []),
+      ])],
+    } : s.flash
+    let toast = s.toast
+    if (applied) {
+      const seen = new Set(s.history.map(h => h.ts + h.msg))
+      const fresh = (next.history ?? []).filter(h => !seen.has(h.ts + h.msg))
+      const msg = fresh.length
+        ? fresh[fresh.length - 1].msg + (fresh.length > 1 ? ` (+${fresh.length - 1} more)` : '')
+        : 'Someone updated the split'
+      toast = { msg, at: Date.now() }
+    }
+
     return {
       ...next,
+      flash,
+      toast,
       _synced: remote,
       _nextItemId: Math.max(s._nextItemId, ids._nextItemId),
       _nextPersonId: Math.max(s._nextPersonId, ids._nextPersonId),
@@ -331,6 +390,10 @@ export const useSplitStore = create<SplitStore>((set, _get) => ({
   }),
 
   markSynced: (snapshot) => set({ _synced: snapshot }),
+
+  setSaveState: (saveState) => set({ saveState }),
+
+  showToast: (msg) => set({ toast: { msg, at: Date.now() } }),
 
   reset: () => set({
     screen: 'upload',
@@ -346,6 +409,9 @@ export const useSplitStore = create<SplitStore>((set, _get) => ({
     splitId: null,
     isSharedSplit: false,
     _synced: null,
+    saveState: 'saved',
+    toast: null,
+    flash: null,
     _nextItemId: 0,
     _nextPersonId: 0,
   }),
