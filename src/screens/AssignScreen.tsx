@@ -1,4 +1,4 @@
-import { useSplitStore, calcPersonTotals } from '../store/useSplitStore'
+import { useSplitStore, calcPersonTotals, portionDivisor } from '../store/useSplitStore'
 import { useFlash, FLASH_CLASS } from '../hooks/useFlash'
 
 /** Equal splits are exact fractions (e.g. 1/7); show them rounded. */
@@ -45,6 +45,9 @@ export default function AssignScreen() {
           const totalWeight = assignedPeople.reduce((s, p) => s + weights[p.id], 0)
           const isUnequal = assignedPeople.some(p => weights[p.id] !== weights[assignedPeople[0]?.id])
           const totalMismatch = Math.abs(totalWeight - item.quantity) > 0.01
+          const unclaimed = item.quantity - totalWeight
+          const divisor = portionDivisor(item, totalWeight)
+          const showPortions = assignedPeople.length >= 2 || (assignedPeople.length === 1 && item.quantity > 1)
 
           return (
             <div key={item.id} className={`rounded-2xl bg-white dark:bg-gray-800 shadow-sm px-4 py-3 ${flashed.has(item.id) ? FLASH_CLASS : ''}`}>
@@ -86,8 +89,8 @@ export default function AssignScreen() {
                 })}
               </div>
 
-              {/* Portion inputs — shown when 2+ people assigned */}
-              {assignedPeople.length >= 2 && (
+              {/* Portion inputs — shown when 2+ people share it, or one person has a multi-unit item */}
+              {showPortions && (
                 <div className="mt-2.5 pt-2.5 border-t border-gray-100 dark:border-gray-700">
                   <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-center gap-1.5">
@@ -95,9 +98,14 @@ export default function AssignScreen() {
                       <span className={`text-[10px] font-semibold ${totalMismatch ? 'text-amber-500' : 'text-gray-400'}`}>
                         {fmtPortion(totalWeight)} of {item.quantity}
                       </span>
-                      {isUnequal && !totalMismatch && (
+                      {totalMismatch && unclaimed > 0 && (
+                        <span className="text-[10px] font-semibold text-amber-500">
+                          · {fmtPortion(unclaimed)} unclaimed
+                        </span>
+                      )}
+                      {!totalMismatch && item.quantity > 1 && (
                         <span className="text-[10px] text-gray-400">
-                          · ${(item.total_price / totalWeight).toFixed(2)} ea
+                          · ${(item.total_price / item.quantity).toFixed(2)} ea
                         </span>
                       )}
                     </div>
@@ -134,13 +142,13 @@ export default function AssignScreen() {
                 </div>
               )}
 
-              {/* Per-person share preview when unequal */}
-              {isUnequal && assignedPeople.length >= 2 && (
+              {/* Per-person share preview when unequal or partly claimed */}
+              {(isUnequal || totalMismatch) && assignedPeople.length >= 1 && (
                 <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
                   {assignedPeople.map(person => (
                     <span key={person.id} className="text-[11px] text-gray-400">
                       <span style={{ color: person.color }}>{person.name}</span>
-                      {' '}${((weights[person.id] / totalWeight) * item.total_price).toFixed(2)}
+                      {' '}${((weights[person.id] / divisor) * item.total_price).toFixed(2)}
                     </span>
                   ))}
                 </div>

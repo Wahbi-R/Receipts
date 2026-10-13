@@ -287,8 +287,17 @@ export const useSplitStore = create<SplitStore>((set, _get) => ({
     const item = s.receipt.items.find(i => i.id === itemId)
     const qty = item?.quantity ?? 1
     const weights = { ...(s.assignments[itemId] ?? {}) }
+    const vals = Object.values(weights)
+    const wasEqualSplit = vals.every(v => Math.abs(v - vals[0]) < 1e-9)
+    const claimed = vals.reduce((a, b) => a + b, 0)
     if (weights[personId] !== undefined) {
       delete weights[personId]
+      // Custom portions (e.g. 1 of 2) stay as set; the freed part shows as unclaimed
+      if (!wasEqualSplit) return { assignments: { ...s.assignments, [itemId]: weights } }
+    } else if (claimed > 0 && qty - claimed > 1e-6) {
+      // Someone already claimed part of it: the new person takes what's left
+      weights[personId] = qty - claimed
+      return { assignments: { ...s.assignments, [itemId]: weights } }
     } else {
       weights[personId] = 1
     }
@@ -434,6 +443,29 @@ export const useSplitStore = create<SplitStore>((set, _get) => ({
   }),
 }))
 
+/**
+ * Portions are units of the item: 1 of 2 means paying half, and the other half
+ * stays unclaimed. If more than the quantity is claimed, it's shared proportionally.
+ */
+export function portionDivisor(item: Item, claimed: number): number {
+  return Math.max(claimed, item.quantity > 0 ? item.quantity : claimed)
+}
+
+export interface UnaccountedItem {
+  item: Item
+  claimed: number     // units claimed so far
+  amount: number      // pre-tax dollars nobody is paying for
+}
+
+/** Items (or parts of items) nobody has claimed yet. */
+export function unaccountedItems(receipt: Receipt, assignments: Assignments): UnaccountedItem[] {
+  return receipt.items.flatMap(item => {
+    const claimed = Object.values(assignments[item.id] ?? {}).reduce((s, w) => s + w, 0)
+    const amount = claimed > 0 ? item.total_price * (1 - claimed / portionDivisor(item, claimed)) : item.total_price
+    return amount > 0.005 ? [{ item, claimed, amount }] : []
+  })
+}
+
 /** Per-person split calculation — used by Assign + Summary screens */
 export function calcPersonTotals(
   receipt: Receipt,
@@ -451,8 +483,9 @@ export function calcPersonTotals(
     const entries = Object.entries(weights).map(([pid, w]) => [Number(pid), w] as [number, number])
     const totalWeight = entries.reduce((s, [, w]) => s + w, 0)
     if (!totalWeight) return
+    const divisor = portionDivisor(item, totalWeight)
     entries.forEach(([pid, w]) => {
-      const share = (w / totalWeight) * item.total_price
+      const share = (w / divisor) * item.total_price
       subtotals[pid] = (subtotals[pid] ?? 0) + share
       itemLines[pid] = [...(itemLines[pid] ?? []), { name: item.name, share }]
     })

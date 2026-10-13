@@ -1,8 +1,46 @@
 import { useState, useEffect } from 'react'
-import { useSplitStore, calcPersonTotals } from '../store/useSplitStore'
+import { useSplitStore, calcPersonTotals, unaccountedItems } from '../store/useSplitStore'
+import type { UnaccountedItem } from '../store/useSplitStore'
 import { saveSplit, uploadImages } from '../lib/supabase'
 import type { HistoryEntry } from '../types'
 import { useFlash, FLASH_CLASS } from '../hooks/useFlash'
+
+function UnaccountedWarning({ list, extrasRate, onFix }: { list: UnaccountedItem[]; extrasRate: number; onFix: () => void }) {
+  const total = list.reduce((s, u) => s + u.amount, 0) * (1 + extrasRate)
+  const fmt = (n: number) => Number(n.toFixed(2))
+  return (
+    <div className="rounded-2xl border-2 border-amber-400 bg-amber-50 dark:bg-amber-950/30 overflow-hidden">
+      <div className="px-4 pt-3 pb-1 flex items-baseline justify-between">
+        <span className="text-sm font-bold text-amber-700 dark:text-amber-300">
+          ⚠ Items unaccounted for
+        </span>
+        <span className="text-sm font-bold text-amber-700 dark:text-amber-300">${total.toFixed(2)}</span>
+      </div>
+      <p className="px-4 text-xs text-amber-700/80 dark:text-amber-300/80">
+        Nobody is paying for these yet{extrasRate ? ' (amount includes their tax & tip)' : ''}.
+      </p>
+      <div className="px-4 py-2">
+        {list.map(({ item, claimed, amount }) => (
+          <div key={item.id} className="flex items-baseline justify-between py-1 text-sm border-t border-amber-200/70 dark:border-amber-800/50 first:border-0">
+            <span className="text-gray-800 dark:text-gray-200 min-w-0 truncate">
+              {item.name}
+              <span className="ml-1.5 text-xs text-amber-700 dark:text-amber-400">
+                {claimed > 0 ? `${fmt(item.quantity - claimed)} of ${item.quantity} unclaimed` : 'nobody assigned'}
+              </span>
+            </span>
+            <span className="ml-2 shrink-0 text-gray-600 dark:text-gray-300">${amount.toFixed(2)}</span>
+          </div>
+        ))}
+      </div>
+      <button
+        onClick={onFix}
+        className="w-full py-2.5 text-sm font-semibold text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-900/40 hover:bg-amber-200 dark:hover:bg-amber-900/60 transition-colors"
+      >
+        Assign them →
+      </button>
+    </div>
+  )
+}
 
 function HistoryTimeline({ entries }: { entries: HistoryEntry[] }) {
   const sorted = [...entries].reverse()
@@ -50,7 +88,7 @@ export default function SummaryScreen() {
   const history = useSplitStore(s => s.history)
   const splitId = useSplitStore(s => s.splitId)
   const images = useSplitStore(s => s.images)
-  const { reset, setLoading, setApproval, setPaid, addHistory } = useSplitStore()
+  const { reset, setLoading, setApproval, setPaid, addHistory, setScreen } = useSplitStore()
   const [shareUrl, setShareUrl] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [lightbox, setLightbox] = useState(false)
@@ -69,6 +107,9 @@ export default function SummaryScreen() {
 
   const totals = calcPersonTotals(receipt, people, assignments)
   const flashedPeople = useFlash('people')
+  const unaccounted = unaccountedItems(receipt, assignments)
+  const itemsSubtotal = receipt.items.reduce((s, i) => s + i.total_price, 0)
+  const extrasRate = itemsSubtotal > 0 ? (receipt.tax + receipt.tip - (receipt.discount ?? 0)) / itemsSubtotal : 0
 
   const handleApproval = (personId: number) => {
     const next = !approvals[personId]
@@ -128,6 +169,10 @@ export default function SummaryScreen() {
         <h1 className="text-2xl font-bold tracking-tight">{receipt.title || 'Summary'}</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Here's who owes what</p>
       </div>
+
+      {unaccounted.length > 0 && (
+        <UnaccountedWarning list={unaccounted} extrasRate={extrasRate} onFix={() => setScreen('assign')} />
+      )}
 
       {/* Receipt image strip */}
       {images.length > 0 && (
