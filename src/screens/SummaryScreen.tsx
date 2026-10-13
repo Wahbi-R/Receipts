@@ -92,7 +92,10 @@ export default function SummaryScreen() {
       const id = await saveSplit(receipt, people, assignments, splitId ?? undefined)
       if (isNew && images.length) {
         setLoading(true, 'Uploading receipt images…')
-        await uploadImages(id, images)
+        const failed = await uploadImages(id, images)
+        if (failed) {
+          alert(`${failed} of ${images.length} receipt photo${images.length > 1 ? 's' : ''} didn't upload. The split is saved, but those photos won't show for others.`)
+        }
       }
       const url = `${window.location.origin}${window.location.pathname}?s=${id}`
       setShareUrl(url)

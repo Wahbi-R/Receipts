@@ -29,16 +29,24 @@ export function loadHistory(): HistoryEntry[] {
 
 const IMAGE_BUCKET = 'receipt-images'
 
-export async function uploadImages(splitId: string, images: ReceiptImage[]): Promise<void> {
-  for (let i = 0; i < images.length; i++) {
-    const img = images[i]
+const UPLOAD_ATTEMPTS = 3
+
+/** Uploads every photo (retrying each a few times). Returns how many still failed. */
+export async function uploadImages(splitId: string, images: ReceiptImage[]): Promise<number> {
+  const results = await Promise.all(images.map(async (img, i) => {
     const ext = img.mediaType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg'
     const path = `${splitId}/${i}.${ext}`
     const bytes = Uint8Array.from(atob(img.base64), c => c.charCodeAt(0))
     const blob = new Blob([bytes], { type: img.mediaType })
-    const { error } = await supabase.storage.from(IMAGE_BUCKET).upload(path, blob, { upsert: true })
-    if (error) console.warn('Image upload failed:', error.message)
-  }
+    for (let attempt = 1; attempt <= UPLOAD_ATTEMPTS; attempt++) {
+      const { error } = await supabase.storage.from(IMAGE_BUCKET).upload(path, blob, { upsert: true })
+      if (!error) return true
+      console.warn(`Image ${i} upload failed (attempt ${attempt}):`, error.message)
+      if (attempt < UPLOAD_ATTEMPTS) await new Promise(r => setTimeout(r, 1000 * attempt))
+    }
+    return false
+  }))
+  return results.filter(ok => !ok).length
 }
 
 async function fetchSharedImages(splitId: string): Promise<ReceiptImage[]> {
