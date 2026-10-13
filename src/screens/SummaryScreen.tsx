@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSplitStore, calcPersonTotals, unaccountedItems } from '../store/useSplitStore'
 import type { UnaccountedItem } from '../store/useSplitStore'
-import { saveSplit, uploadImages } from '../lib/supabase'
+import { saveSplit, uploadImages, addImageToSplit } from '../lib/supabase'
+import { shrinkImage } from '../lib/images'
 import type { HistoryEntry } from '../types'
 import { useFlash, FLASH_CLASS } from '../hooks/useFlash'
 
@@ -93,6 +94,33 @@ export default function SummaryScreen() {
   const [copied, setCopied] = useState(false)
   const [lightbox, setLightbox] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState(0)
+  const [addingPhoto, setAddingPhoto] = useState(false)
+  const photoInputRef = useRef<HTMLInputElement>(null)
+
+  const handleAddPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []).filter(f => f.type.startsWith('image/'))
+    e.target.value = ''
+    if (!files.length) return
+    const id = useSplitStore.getState().splitId
+    if (!id) {
+      // Not shared yet: photos upload with everything else on the first Share Link
+      for (const f of files) {
+        const img = await shrinkImage(f)
+        useSplitStore.getState().addImage(img.base64, img.mediaType)
+      }
+      return
+    }
+    setAddingPhoto(true)
+    let failed = 0
+    for (const f of files) {
+      const updated = await addImageToSplit(id, await shrinkImage(f))
+      if (updated) useSplitStore.getState().setImages(updated)
+      else failed++
+    }
+    setAddingPhoto(false)
+    if (failed < files.length) addHistory(`Added ${files.length - failed} receipt photo${files.length - failed > 1 ? 's' : ''}`)
+    if (failed) alert(`${failed} photo${failed > 1 ? 's' : ''} didn't upload. Check your connection and try again.`)
+  }
 
   useEffect(() => {
     if (!lightbox) return
@@ -175,7 +203,7 @@ export default function SummaryScreen() {
       )}
 
       {/* Receipt image strip */}
-      {images.length > 0 && (
+      {(images.length > 0 || splitId) && (
         <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
           {images.map((img, i) => (
             <button
@@ -190,6 +218,14 @@ export default function SummaryScreen() {
               />
             </button>
           ))}
+          <button
+            onClick={() => photoInputRef.current?.click()}
+            disabled={addingPhoto}
+            className="shrink-0 w-24 h-24 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 text-gray-400 hover:border-emerald-400 hover:text-emerald-500 flex flex-col items-center justify-center text-xs font-semibold transition-colors disabled:opacity-60"
+          >
+            {addingPhoto ? 'Uploading…' : <><span className="text-2xl leading-none">+</span>Add photo</>}
+          </button>
+          <input ref={photoInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleAddPhoto} />
         </div>
       )}
 

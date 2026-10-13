@@ -31,22 +31,39 @@ const IMAGE_BUCKET = 'receipt-images'
 
 const UPLOAD_ATTEMPTS = 3
 
+/** Uploads one photo as `<splitId>/<index>.<ext>`, retrying a few times. */
+async function uploadImage(splitId: string, index: number, img: ReceiptImage): Promise<boolean> {
+  const ext = img.mediaType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg'
+  const path = `${splitId}/${index}.${ext}`
+  const bytes = Uint8Array.from(atob(img.base64), c => c.charCodeAt(0))
+  const blob = new Blob([bytes], { type: img.mediaType })
+  for (let attempt = 1; attempt <= UPLOAD_ATTEMPTS; attempt++) {
+    const { error } = await supabase.storage.from(IMAGE_BUCKET).upload(path, blob, { upsert: true })
+    if (!error) return true
+    console.warn(`Image ${index} upload failed (attempt ${attempt}):`, error.message)
+    if (attempt < UPLOAD_ATTEMPTS) await new Promise(r => setTimeout(r, 1000 * attempt))
+  }
+  return false
+}
+
 /** Uploads every photo (retrying each a few times). Returns how many still failed. */
 export async function uploadImages(splitId: string, images: ReceiptImage[]): Promise<number> {
-  const results = await Promise.all(images.map(async (img, i) => {
-    const ext = img.mediaType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg'
-    const path = `${splitId}/${i}.${ext}`
-    const bytes = Uint8Array.from(atob(img.base64), c => c.charCodeAt(0))
-    const blob = new Blob([bytes], { type: img.mediaType })
-    for (let attempt = 1; attempt <= UPLOAD_ATTEMPTS; attempt++) {
-      const { error } = await supabase.storage.from(IMAGE_BUCKET).upload(path, blob, { upsert: true })
-      if (!error) return true
-      console.warn(`Image ${i} upload failed (attempt ${attempt}):`, error.message)
-      if (attempt < UPLOAD_ATTEMPTS) await new Promise(r => setTimeout(r, 1000 * attempt))
-    }
-    return false
-  }))
+  const results = await Promise.all(images.map((img, i) => uploadImage(splitId, i, img)))
   return results.filter(ok => !ok).length
+}
+
+/**
+ * Add a photo to a split that's already shared. Uses the lowest free number, so a
+ * photo that failed to upload originally (e.g. 0.jpg) slots back into its place.
+ * Returns the split's photos in order, or null if the upload failed.
+ */
+export async function addImageToSplit(splitId: string, img: ReceiptImage): Promise<ReceiptImage[] | null> {
+  const { data: files } = await supabase.storage.from(IMAGE_BUCKET).list(splitId)
+  const used = new Set((files ?? []).map(f => parseInt(f.name, 10)).filter(n => !isNaN(n)))
+  let index = 0
+  while (used.has(index)) index++
+  if (!await uploadImage(splitId, index, img)) return null
+  return fetchSharedImages(splitId)
 }
 
 async function fetchSharedImages(splitId: string): Promise<ReceiptImage[]> {
@@ -54,7 +71,8 @@ async function fetchSharedImages(splitId: string): Promise<ReceiptImage[]> {
   if (error || !files?.length) return []
 
   const images: ReceiptImage[] = []
-  for (const file of files) {
+  const ordered = [...files].sort((a, b) => parseInt(a.name, 10) - parseInt(b.name, 10))
+  for (const file of ordered) {
     const path = `${splitId}/${file.name}`
     const { data, error: dlError } = await supabase.storage.from(IMAGE_BUCKET).download(path)
     if (dlError || !data) continue
@@ -174,6 +192,11 @@ export function subscribeToSplit(splitId: string): () => void {
       async () => {
         const { data } = await supabase.from(TABLE).select('*').eq('id', splitId).single()
         if (data) useSplitStore.getState().applyRemoteSplit(data as SupabaseSplit)
+        // Someone may have added a receipt photo
+        const { data: files } = await supabase.storage.from(IMAGE_BUCKET).list(splitId)
+        if (files && files.length !== useSplitStore.getState().images.length) {
+          useSplitStore.getState().setImages(await fetchSharedImages(splitId))
+        }
       },
     )
     .subscribe()
