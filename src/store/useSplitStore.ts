@@ -17,14 +17,30 @@ const emptyReceipt = (): Receipt => ({
 
 export const STEP_ORDER: Screen[] = ['upload', 'items', 'people', 'assign', 'summary']
 
+/** Everyone gets the identical portion, so everyone pays exactly the same share. */
 function splitEqually(quantity: number, pids: number[]): Record<number, number> {
   const n = pids.length
   if (!n) return {}
+  const w: Record<number, number> = {}
+  pids.forEach(pid => { w[pid] = quantity / n })
+  return w
+}
+
+/**
+ * Older versions rounded each portion down to 0.01 and gave the leftover to the
+ * last person (1 item / 7 people -> six at 0.14, one at 0.16), overcharging them.
+ * Detect that exact pattern in saved splits and replace it with an equal split.
+ */
+function fixLegacyEqualSplit(quantity: number, weights: Record<number, number>): Record<number, number> {
+  const pids = Object.keys(weights).map(Number)
+  const n = pids.length
+  if (n < 2) return weights
   const base = Math.floor((quantity / n) * 100) / 100
   const last = Math.round((quantity - base * (n - 1)) * 100) / 100
-  const w: Record<number, number> = {}
-  pids.forEach((pid, i) => { w[pid] = i < n - 1 ? base : last })
-  return w
+  if (base === last) return weights
+  const vals = pids.map(p => weights[p])
+  const looksLegacy = vals.filter(v => v === base).length === n - 1 && vals.filter(v => v === last).length === 1
+  return looksLegacy ? splitEqually(quantity, pids) : weights
 }
 
 /** Fields that are saved to Supabase and synced live between viewers. */
@@ -55,7 +71,8 @@ function parseSplit(data: SupabaseSplit) {
   Object.entries(data.assignments ?? {}).forEach(([k, v]) => {
     const weights: Record<number, number> = {}
     Object.entries(v).forEach(([pid, w]) => { weights[Number(pid)] = w })
-    assignments[Number(k)] = weights
+    const qty = data.receipt.items.find(i => i.id === Number(k))?.quantity ?? 1
+    assignments[Number(k)] = fixLegacyEqualSplit(qty, weights)
   })
   const approvals: Record<number, boolean> = {}
   Object.entries(data.approvals ?? {}).forEach(([k, v]) => { approvals[Number(k)] = v })

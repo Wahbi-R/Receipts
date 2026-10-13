@@ -1,6 +1,9 @@
 import { useSplitStore, calcPersonTotals } from '../store/useSplitStore'
 import { useFlash, FLASH_CLASS } from '../hooks/useFlash'
 
+/** Equal splits are exact fractions (e.g. 1/7); show them rounded. */
+const fmtPortion = (w: number) => Number(w.toFixed(2))
+
 export default function AssignScreen() {
   const receipt = useSplitStore(s => s.receipt)
   const people = useSplitStore(s => s.people)
@@ -76,7 +79,7 @@ export default function AssignScreen() {
                     >
                       {person.name}
                       {active && w !== 1 && (
-                        <span className="ml-1 opacity-80">×{w}</span>
+                        <span className="ml-1 opacity-80">×{fmtPortion(w)}</span>
                       )}
                     </button>
                   )
@@ -90,7 +93,7 @@ export default function AssignScreen() {
                     <div className="flex items-center gap-1.5">
                       <span className="text-[10px] uppercase tracking-wide font-semibold text-gray-400">Portions</span>
                       <span className={`text-[10px] font-semibold ${totalMismatch ? 'text-amber-500' : 'text-gray-400'}`}>
-                        {totalWeight % 1 === 0 ? totalWeight : totalWeight.toFixed(2)} of {item.quantity}
+                        {fmtPortion(totalWeight)} of {item.quantity}
                       </span>
                       {isUnequal && !totalMismatch && (
                         <span className="text-[10px] text-gray-400">
@@ -116,7 +119,7 @@ export default function AssignScreen() {
                         </span>
                         <input
                           type="number"
-                          value={weights[person.id]}
+                          value={fmtPortion(weights[person.id])}
                           min={0}
                           step={0.5}
                           onChange={e => {
