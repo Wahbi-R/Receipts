@@ -27,6 +27,13 @@ export type Assignments = Record<number, Record<number, number>>
 
 export type Screen = 'upload' | 'items' | 'people' | 'assign' | 'summary' | 'history'
 
+/**
+ * A person's "Looks good" / "Paid" mark. A number is the share (in dollars) they
+ * signed off on or paid, so it can be checked against what they owe now.
+ * `true` comes from splits saved before amounts were recorded (amount unknown).
+ */
+export type Sign = number | boolean
+
 export interface HistoryEntry {
   ts: string
   msg: string
@@ -39,7 +46,7 @@ export interface SupabaseSplit {
   receipt: Receipt
   people: Person[]
   assignments: Record<string, Record<string, number>>
-  approvals?: Record<string, boolean>
-  paid?: Record<string, boolean>
+  approvals?: Record<string, Sign>
+  paid?: Record<string, Sign>
   history?: HistoryEntry[]
 }

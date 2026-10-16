@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useSplitStore, calcPersonTotals, unaccountedItems } from '../store/useSplitStore'
+import { useSplitStore, calcPersonTotals, unaccountedItems, signStatus, toCents } from '../store/useSplitStore'
 import type { UnaccountedItem } from '../store/useSplitStore'
 import { saveSplit, uploadImages, addImageToSplit } from '../lib/supabase'
 import { shrinkImage } from '../lib/images'
@@ -139,18 +139,39 @@ export default function SummaryScreen() {
   const itemsSubtotal = receipt.items.reduce((s, i) => s + i.total_price, 0)
   const extrasRate = itemsSubtotal > 0 ? (receipt.tax + receipt.tip - (receipt.discount ?? 0)) / itemsSubtotal : 0
 
-  const handleApproval = (personId: number) => {
-    const next = !approvals[personId]
+  const money = (n: number) => `$${n.toFixed(2)}`
+
+  // Marks store the amount signed off on. Tapping an up-to-date mark clears it;
+  // tapping one whose share has since changed re-confirms it at the new amount.
+  const handleApproval = (personId: number, total: number) => {
+    const mark = approvals[personId]
+    const status = signStatus(mark, total)
     const name = people.find(p => p.id === personId)?.name ?? 'Someone'
-    setApproval(personId, next)
-    addHistory(next ? `${name} approved their share` : `${name} removed their approval`)
+    if (status === 'ok') {
+      setApproval(personId, false)
+      addHistory(`${name} removed their approval`)
+      return
+    }
+    setApproval(personId, toCents(total) / 100)
+    addHistory(status === 'none'
+      ? `${name} approved their share (${money(total)})`
+      : `${name} approved their updated share (${money(mark as number)} → ${money(total)})`)
   }
 
-  const handlePaid = (personId: number) => {
-    const next = !paid[personId]
+  const handlePaid = (personId: number, total: number) => {
+    const mark = paid[personId]
+    const status = signStatus(mark, total)
     const name = people.find(p => p.id === personId)?.name ?? 'Someone'
-    setPaid(personId, next)
-    addHistory(next ? `${name} marked as paid` : `${name} unmarked as paid`)
+    if (status === 'ok') {
+      setPaid(personId, false)
+      addHistory(`${name} unmarked as paid`)
+      return
+    }
+    setPaid(personId, toCents(total) / 100)
+    const diff = Math.abs(total - (mark as number))
+    addHistory(status === 'none' ? `${name} marked as paid (${money(total)})`
+      : status === 'more' ? `${name} paid the remaining ${money(diff)}`
+      : `${name}'s overpayment of ${money(diff)} was settled`)
   }
 
   const handleShare = async () => {
@@ -271,10 +292,14 @@ export default function SummaryScreen() {
       )}
 
       {totals.map(({ person, items, extraShare, total }) => {
-        const isApproved = approvals[person.id]
-        const isPaid = paid[person.id]
+        const approval = signStatus(approvals[person.id], total)
+        const payment = signStatus(paid[person.id], total)
+        const approvedAt = approvals[person.id] as number
+        const paidAmount = paid[person.id] as number
+        const approvalStale = approval === 'more' || approval === 'less'
+        const paymentStale = payment === 'more' || payment === 'less'
         return (
-          <div key={person.id} className={`rounded-2xl bg-white dark:bg-gray-800 shadow-sm overflow-hidden ${flashedPeople.has(person.id) ? FLASH_CLASS : ''}`}>
+          <div key={person.id} className={`rounded-2xl bg-white dark:bg-gray-800 shadow-sm overflow-hidden ${approvalStale || paymentStale ? 'ring-2 ring-amber-400' : ''} ${flashedPeople.has(person.id) ? FLASH_CLASS : ''}`}>
             <div
               className="px-4 py-3 flex items-center justify-between"
               style={{ backgroundColor: person.color + '22' }}
@@ -282,14 +307,24 @@ export default function SummaryScreen() {
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full" style={{ backgroundColor: person.color }} />
                 <span className="font-semibold">{person.name}</span>
-                {isApproved && (
+                {approval === 'ok' && (
                   <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40 px-1.5 py-0.5 rounded-full">
                     ✓ Looks good
                   </span>
                 )}
-                {isPaid && (
+                {approvalStale && (
+                  <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 px-1.5 py-0.5 rounded-full">
+                    ⚠ Changed since OK
+                  </span>
+                )}
+                {payment === 'ok' && (
                   <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/40 px-1.5 py-0.5 rounded-full">
                     $ Paid
+                  </span>
+                )}
+                {paymentStale && (
+                  <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 px-1.5 py-0.5 rounded-full">
+                    {payment === 'more' ? `Owes ${money(total - paidAmount)} more` : `Overpaid ${money(paidAmount - total)}`}
                   </span>
                 )}
               </div>
@@ -314,30 +349,51 @@ export default function SummaryScreen() {
               )}
             </div>
 
+            {(approvalStale || paymentStale) && (
+              <div className="mx-4 mb-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-xs text-amber-800 dark:text-amber-200 flex flex-col gap-0.5">
+                {approvalStale && (
+                  <span>Share changed from {money(approvedAt)} to {money(total)} after {person.name} said it looks good.</span>
+                )}
+                {paymentStale && (
+                  <span>
+                    Paid {money(paidAmount)}, share is now {money(total)}
+                    {payment === 'more' ? ` (owes ${money(total - paidAmount)} more).` : ` (overpaid by ${money(paidAmount - total)}).`}
+                  </span>
+                )}
+              </div>
+            )}
+
             <div className="px-4 pb-3 flex gap-2">
               <button
-                onClick={() => handleApproval(person.id)}
+                onClick={() => handleApproval(person.id, total)}
                 className={`flex-1 py-2 rounded-lg text-xs font-semibold border-2 transition-all active:scale-[.97] ${
-                  isApproved
+                  approval === 'ok'
                     ? 'bg-emerald-500 border-emerald-500 text-white'
-                    : 'border-emerald-400 text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
+                    : approvalStale
+                      ? 'bg-amber-400 border-amber-400 text-amber-950 hover:bg-amber-500'
+                      : 'border-emerald-400 text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
                 }`}
               >
-                {isApproved ? '✓ Looks good!' : 'Looks good?'}
+                {approval === 'ok' ? '✓ Looks good!' : approvalStale ? '⚠ Still look good?' : 'Looks good?'}
               </button>
               <button
-                onClick={() => handlePaid(person.id)}
+                onClick={() => handlePaid(person.id, total)}
                 className={`flex-1 py-2 rounded-lg text-xs font-semibold border-2 transition-all active:scale-[.97] ${
-                  isPaid
+                  payment === 'ok'
                     ? 'bg-blue-500 border-blue-500 text-white'
-                    : 'border-blue-400 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/30'
+                    : paymentStale
+                      ? 'bg-amber-400 border-amber-400 text-amber-950 hover:bg-amber-500'
+                      : 'border-blue-400 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/30'
                 }`}
               >
-                {isPaid ? '$ Paid ✓' : 'Mark paid'}
+                {payment === 'ok' ? '$ Paid ✓'
+                  : payment === 'more' ? `Mark ${money(total - paidAmount)} paid`
+                  : payment === 'less' ? 'Mark settled'
+                  : 'Mark paid'}
               </button>
             </div>
 
-            {(isApproved || isPaid) && !splitId && (
+            {(approval !== 'none' || payment !== 'none') && !splitId && (
               <p className="px-4 pb-2.5 text-[10px] text-gray-400">
                 Share the link below for others to see this status
               </p>

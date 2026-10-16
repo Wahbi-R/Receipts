@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { useSplitStore, syncSnapshot } from '../store/useSplitStore'
 import type { ReceiptImage } from '../store/useSplitStore'
-import type { Receipt, Person, Assignments, SupabaseSplit } from '../types'
+import type { Receipt, Person, Assignments, SupabaseSplit, Sign } from '../types'
 
 export const SUPABASE_URL = 'https://syocailabsljnapwvaox.supabase.co'
 export const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5b2NhaWxhYnNsam5hcHd2YW94Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM4NzQ1MzcsImV4cCI6MjA5OTQ1MDUzN30.7AdIdZDPexgCJKMl0ma76kRFZFy0UkQDmlIPFYNDyU8'
@@ -135,9 +135,9 @@ export async function saveSplit(
   Object.entries(a).forEach(([k, v]) => { rawAssignments[k] = v as Record<string, number> })
 
   const { approvals: rawApprovals, paid: rawPaid, history } = store
-  const approvalsOut: Record<string, boolean> = {}
+  const approvalsOut: Record<string, Sign> = {}
   Object.entries(rawApprovals).forEach(([k, v]) => { approvalsOut[k] = v })
-  const paidOut: Record<string, boolean> = {}
+  const paidOut: Record<string, Sign> = {}
   Object.entries(rawPaid).forEach(([k, v]) => { paidOut[k] = v })
 
   const sent = syncSnapshot({ receipt: r, people: p, assignments: a, approvals: rawApprovals, paid: rawPaid, history })

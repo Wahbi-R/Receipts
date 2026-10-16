@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Item, Receipt, Person, Assignments, Screen, SupabaseSplit, HistoryEntry } from '../types'
+import type { Item, Receipt, Person, Assignments, Screen, SupabaseSplit, HistoryEntry, Sign } from '../types'
 
 export const PERSON_COLORS = [
   '#EF4444', '#3B82F6', '#10B981', '#F59E0B',
@@ -74,9 +74,9 @@ function parseSplit(data: SupabaseSplit) {
     const qty = data.receipt.items.find(i => i.id === Number(k))?.quantity ?? 1
     assignments[Number(k)] = fixLegacyEqualSplit(qty, weights)
   })
-  const approvals: Record<number, boolean> = {}
+  const approvals: Record<number, Sign> = {}
   Object.entries(data.approvals ?? {}).forEach(([k, v]) => { approvals[Number(k)] = v })
-  const paid: Record<number, boolean> = {}
+  const paid: Record<number, Sign> = {}
   Object.entries(data.paid ?? {}).forEach(([k, v]) => { paid[Number(k)] = v })
   return {
     receipt: data.receipt,
@@ -135,8 +135,8 @@ interface SplitStore {
   scannedSubtotal: number
   people: Person[]
   assignments: Assignments
-  approvals: Record<number, boolean>
-  paid: Record<number, boolean>
+  approvals: Record<number, Sign>
+  paid: Record<number, Sign>
   history: HistoryEntry[]
   splitId: string | null
   isSharedSplit: boolean
@@ -165,8 +165,8 @@ interface SplitStore {
   setWeight(itemId: number, personId: number, weight: number): void
   splitItemEqually(itemId: number): void
   assignAll(): void
-  setApproval(personId: number, value: boolean): void
-  setPaid(personId: number, value: boolean): void
+  setApproval(personId: number, value: Sign): void
+  setPaid(personId: number, value: Sign): void
   addHistory(msg: string): void
   setSplitId(id: string): void
   setImages(images: ReceiptImage[]): void
@@ -467,6 +467,25 @@ export function unaccountedItems(receipt: Receipt, assignments: Assignments): Un
 }
 
 /** Per-person split calculation — used by Assign + Summary screens */
+/** Dollars rounded to the cent, so float noise never counts as a change. */
+export const toCents = (n: number) => Math.round(n * 100)
+
+/**
+ * How a "Looks good" / "Paid" mark compares with what the person owes now.
+ * - none:  not marked
+ * - ok:    marked for exactly the current amount (or a legacy mark with no amount)
+ * - more:  their share went up since they marked it
+ * - less:  their share went down since they marked it
+ */
+export type SignStatus = 'none' | 'ok' | 'more' | 'less'
+
+export function signStatus(mark: Sign | undefined, total: number): SignStatus {
+  if (mark === undefined || mark === false) return 'none'
+  if (mark === true) return 'ok'
+  const diff = toCents(total) - toCents(mark)
+  return diff === 0 ? 'ok' : diff > 0 ? 'more' : 'less'
+}
+
 export function calcPersonTotals(
   receipt: Receipt,
   people: Person[],
