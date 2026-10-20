@@ -5,8 +5,11 @@ import { saveSplit, uploadImages, addImageToSplit } from '../lib/supabase'
 import { shrinkImage } from '../lib/images'
 import type { HistoryEntry } from '../types'
 import { useFlash, FLASH_CLASS } from '../hooks/useFlash'
+import { useMoney, useAltMoney, useCurrencies, formatMoney } from '../lib/money'
 
 function UnaccountedWarning({ list, extrasRate, onFix }: { list: UnaccountedItem[]; extrasRate: number; onFix: () => void }) {
+  const money = useMoney()
+  const alt = useAltMoney()
   const total = list.reduce((s, u) => s + u.amount, 0) * (1 + extrasRate)
   const fmt = (n: number) => Number(n.toFixed(2))
   return (
@@ -15,7 +18,10 @@ function UnaccountedWarning({ list, extrasRate, onFix }: { list: UnaccountedItem
         <span className="text-sm font-bold text-amber-700 dark:text-amber-300">
           ⚠ Items unaccounted for
         </span>
-        <span className="text-sm font-bold text-amber-700 dark:text-amber-300">${total.toFixed(2)}</span>
+        <span className="text-sm font-bold text-amber-700 dark:text-amber-300 text-right">
+          {money(total)}
+          {alt(total) && <span className="block text-[11px] font-medium opacity-70">{alt(total)}</span>}
+        </span>
       </div>
       <p className="px-4 text-xs text-amber-700/80 dark:text-amber-300/80">
         Nobody is paying for these yet{extrasRate ? ' (amount includes their tax & tip)' : ''}.
@@ -29,7 +35,7 @@ function UnaccountedWarning({ list, extrasRate, onFix }: { list: UnaccountedItem
                 {claimed > 0 ? `${fmt(item.quantity - claimed)} of ${item.quantity} unclaimed` : 'nobody assigned'}
               </span>
             </span>
-            <span className="ml-2 shrink-0 text-gray-600 dark:text-gray-300">${amount.toFixed(2)}</span>
+            <span className="ml-2 shrink-0 text-gray-600 dark:text-gray-300">{money(amount)}</span>
           </div>
         ))}
       </div>
@@ -81,6 +87,9 @@ function timeAgo(ts: string): string {
 }
 
 export default function SummaryScreen() {
+  const money = useMoney()
+  const alt = useAltMoney()
+  const currencies = useCurrencies()
   const receipt = useSplitStore(s => s.receipt)
   const people = useSplitStore(s => s.people)
   const assignments = useSplitStore(s => s.assignments)
@@ -181,11 +190,11 @@ export default function SummaryScreen() {
   const handleCopyText = async () => {
     const lines: string[] = [`🧾 ${receipt.title || 'Receipt Split'}\n`]
     totals.forEach(({ person, items, total }) => {
-      lines.push(`${person.name}: $${total.toFixed(2)}`)
-      items.forEach(i => lines.push(`  • ${i.name}: $${i.share.toFixed(2)}`))
+      lines.push(`${person.name}: ${money(total)}${alt(total) ? ` (${alt(total)})` : ''}`)
+      items.forEach(i => lines.push(`  • ${i.name}: ${money(i.share)}`))
       lines.push('')
     })
-    lines.push(`Total: $${receipt.total.toFixed(2)}`)
+    lines.push(`Total: ${money(receipt.total)}${alt(receipt.total) ? ` (${alt(receipt.total)})` : ''}`)
     await navigator.clipboard.writeText(lines.join('\n'))
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
@@ -196,6 +205,19 @@ export default function SummaryScreen() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">{receipt.title || 'Summary'}</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Here's who owes what</p>
+        {currencies.home && (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <button
+              onClick={currencies.toggle}
+              className="rounded-full border border-emerald-400 px-3 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 active:scale-[.97] transition-all"
+            >
+              Show in {currencies.showHome ? currencies.local : currencies.home.currency}
+            </button>
+            <span className="text-xs text-gray-400">
+              {formatMoney(1000, currencies.local)} ≈ {formatMoney(1000 * currencies.home.rate, currencies.home.currency)} at the rate paid
+            </span>
+          </div>
+        )}
       </div>
 
       {unaccounted.length > 0 && (
@@ -289,24 +311,27 @@ export default function SummaryScreen() {
                 )}
                 {isPaid && (
                   <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/40 px-1.5 py-0.5 rounded-full">
-                    $ Paid
+                    ✓ Paid
                   </span>
                 )}
               </div>
-              <span className="text-lg font-bold">${total.toFixed(2)}</span>
+              <span className="text-lg font-bold text-right leading-tight">
+                {money(total)}
+                {alt(total) && <span className="block text-xs font-medium text-gray-500 dark:text-gray-400">{alt(total)}</span>}
+              </span>
             </div>
 
             <div className="px-4 py-2 text-sm">
               {items.map((line, i) => (
                 <div key={i} className="flex items-baseline justify-between py-0.5">
                   <span className="text-gray-600 dark:text-gray-400">{line.name}</span>
-                  <span>${line.share.toFixed(2)}</span>
+                  <span>{money(line.share)}</span>
                 </div>
               ))}
               {items.length > 0 && extraShare > 0 && (
                 <div className="flex items-baseline justify-between py-0.5 text-gray-400 text-xs border-t border-gray-100 dark:border-gray-700 mt-1 pt-1.5">
                   <span>Tax &amp; tip (proportional)</span>
-                  <span>+${extraShare.toFixed(2)}</span>
+                  <span>+{money(extraShare)}</span>
                 </div>
               )}
               {items.length === 0 && (
@@ -333,7 +358,7 @@ export default function SummaryScreen() {
                     : 'border-blue-400 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/30'
                 }`}
               >
-                {isPaid ? '$ Paid ✓' : 'Mark paid'}
+                {isPaid ? 'Paid ✓' : 'Mark paid'}
               </button>
             </div>
 
@@ -349,7 +374,14 @@ export default function SummaryScreen() {
       {/* Grand total */}
       <div className="rounded-2xl bg-white dark:bg-gray-800 shadow-sm px-4 py-3 flex justify-between font-bold">
         <span>Total</span>
-        <span>${totals.reduce((s, t) => s + t.total, 0).toFixed(2)}</span>
+        <span className="text-right leading-tight">
+          {money(totals.reduce((s, t) => s + t.total, 0))}
+          {alt(totals.reduce((s, t) => s + t.total, 0)) && (
+            <span className="block text-xs font-medium text-gray-500 dark:text-gray-400">
+              {alt(totals.reduce((s, t) => s + t.total, 0))}
+            </span>
+          )}
+        </span>
       </div>
 
       {/* Share link */}

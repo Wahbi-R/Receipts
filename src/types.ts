@@ -8,6 +8,13 @@ export interface Item {
 
 export interface Receipt {
   title?: string
+  /** ISO code (e.g. "JPY"); absent means dollars. Set by WabWay. */
+  currency?: string
+  /** The payer's home currency (e.g. "CAD") and the rate actually used —
+   *  WabWay's home amount ÷ amount, so it includes their override and any
+   *  card fee. Lets the split show "¥8,570 ≈ C$76.18". */
+  home_currency?: string
+  home_rate?: number
   items: Item[]
   subtotal: number
   discount: number

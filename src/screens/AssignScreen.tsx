@@ -1,10 +1,13 @@
 import { useSplitStore, calcPersonTotals, portionDivisor } from '../store/useSplitStore'
 import { useFlash, FLASH_CLASS } from '../hooks/useFlash'
+import { useMoney, useAltMoney } from '../lib/money'
 
 /** Equal splits are exact fractions (e.g. 1/7); show them rounded. */
 const fmtPortion = (w: number) => Number(w.toFixed(2))
 
 export default function AssignScreen() {
+  const money = useMoney()
+  const alt = useAltMoney()
   const receipt = useSplitStore(s => s.receipt)
   const people = useSplitStore(s => s.people)
   const assignments = useSplitStore(s => s.assignments)
@@ -60,7 +63,7 @@ export default function AssignScreen() {
                   )}
                 </span>
                 <span className="text-sm font-semibold ml-2 shrink-0">
-                  ${item.total_price.toFixed(2)}
+                  {money(item.total_price)}
                 </span>
               </div>
 
@@ -105,7 +108,7 @@ export default function AssignScreen() {
                       )}
                       {!totalMismatch && item.quantity > 1 && (
                         <span className="text-[10px] text-gray-400">
-                          · ${(item.total_price / item.quantity).toFixed(2)} ea
+                          · {money((item.total_price / item.quantity))} ea
                         </span>
                       )}
                     </div>
@@ -148,7 +151,7 @@ export default function AssignScreen() {
                   {assignedPeople.map(person => (
                     <span key={person.id} className="text-[11px] text-gray-400">
                       <span style={{ color: person.color }}>{person.name}</span>
-                      {' '}${((weights[person.id] / divisor) * item.total_price).toFixed(2)}
+                      {' '}{money(((weights[person.id] / divisor) * item.total_price))}
                     </span>
                   ))}
                 </div>
@@ -167,12 +170,15 @@ export default function AssignScreen() {
           <div key={person.id} className="flex items-center px-4 py-2 border-t border-gray-100 dark:border-gray-700 first:border-0">
             <span className="w-2.5 h-2.5 rounded-full mr-2 shrink-0" style={{ backgroundColor: person.color }} />
             <span className="flex-1 text-sm">{person.name}</span>
-            <span className="font-semibold text-sm">${total.toFixed(2)}</span>
+            <span className="font-semibold text-sm text-right">
+              {money(total)}
+              {alt(total) && <span className="block text-[11px] font-normal text-gray-500 dark:text-gray-400">{alt(total)}</span>}
+            </span>
           </div>
         ))}
         <div className="flex items-center px-4 py-2.5 border-t-2 border-gray-200 dark:border-gray-600">
           <span className="flex-1 text-sm font-bold">Grand total</span>
-          <span className="font-bold text-sm">${totals.reduce((s, t) => s + t.total, 0).toFixed(2)}</span>
+          <span className="font-bold text-sm">{money(totals.reduce((s, t) => s + t.total, 0))}</span>
         </div>
       </div>
 
