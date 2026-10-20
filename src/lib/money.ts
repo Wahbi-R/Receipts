@@ -1,3 +1,4 @@
+import { create } from 'zustand'
 import { useSplitStore } from '../store/useSplitStore'
 
 /**
@@ -40,8 +41,44 @@ export function currencySymbol(currency?: string): string {
     .find(p => p.type === 'currency')?.value ?? '$'
 }
 
-/** Formatter for the split being viewed. */
-export function useMoney(): (amount: number) => string {
-  const currency = useSplitStore(s => s.receipt.currency)
-  return (amount: number) => formatMoney(amount, currency)
+// Whether this viewer would rather see amounts in the home currency (CAD)
+// than the receipt's (JPY). Per device, like the rest of their settings.
+const PREF_KEY = 'prefer_home_currency'
+const usePreferHome = create<{ preferHome: boolean; toggle: () => void }>(set => ({
+  preferHome: (() => { try { return localStorage.getItem(PREF_KEY) === '1' } catch { return false } })(),
+  toggle: () => set(s => {
+    const preferHome = !s.preferHome
+    try { localStorage.setItem(PREF_KEY, preferHome ? '1' : '0') } catch { /* private mode */ }
+    return { preferHome }
+  }),
+}))
+
+/** The split's two currencies, if WabWay sent a home currency and rate. */
+export function useCurrencies() {
+  const receipt = useSplitStore(s => s.receipt)
+  const { preferHome, toggle } = usePreferHome()
+  const local = receiptCurrency(receipt.currency)
+  const home = receipt.home_currency && receipt.home_rate && receipt.home_rate > 0
+    && receiptCurrency(receipt.home_currency) !== local
+    ? { currency: receiptCurrency(receipt.home_currency), rate: receipt.home_rate }
+    : null
+  return { local, home, showHome: !!home && preferHome, toggle }
+}
+
+/**
+ * Formatter for the split being viewed, in the viewer's preferred currency
+ * ([useCurrencies] — the receipt's own unless they chose the home one).
+ * Pass `{ local: true }` where the receipt's own numbers are being edited.
+ */
+export function useMoney(opts?: { local?: boolean }): (amount: number) => string {
+  const { local, home, showHome } = useCurrencies()
+  if (home && showHome && !opts?.local) return (amount: number) => formatMoney(amount * home.rate, home.currency)
+  return (amount: number) => formatMoney(amount, local)
+}
+
+/** "≈ C$76.18" (or "≈ ¥8,570" when home is shown) — the other currency, or null. */
+export function useAltMoney(): (amount: number) => string | null {
+  const { local, home, showHome } = useCurrencies()
+  if (!home) return () => null
+  return (amount: number) => '≈ ' + (showHome ? formatMoney(amount, local) : formatMoney(amount * home.rate, home.currency))
 }

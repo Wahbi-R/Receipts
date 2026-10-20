@@ -34,7 +34,7 @@ function NumericInput({
 }
 
 export default function ItemsScreen() {
-  const money = useMoney()
+  const money = useMoney({ local: true }) // editing the receipt's own numbers
   const symbol = currencySymbol(useSplitStore(s => s.receipt.currency))
   const receipt = useSplitStore(s => s.receipt)
   const scannedSubtotal = useSplitStore(s => s.scannedSubtotal)
