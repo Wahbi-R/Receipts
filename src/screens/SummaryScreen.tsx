@@ -5,8 +5,10 @@ import { saveSplit, uploadImages, addImageToSplit } from '../lib/supabase'
 import { shrinkImage } from '../lib/images'
 import type { HistoryEntry } from '../types'
 import { useFlash, FLASH_CLASS } from '../hooks/useFlash'
+import { useMoney } from '../lib/money'
 
 function UnaccountedWarning({ list, extrasRate, onFix }: { list: UnaccountedItem[]; extrasRate: number; onFix: () => void }) {
+  const money = useMoney()
   const total = list.reduce((s, u) => s + u.amount, 0) * (1 + extrasRate)
   const fmt = (n: number) => Number(n.toFixed(2))
   return (
@@ -15,7 +17,7 @@ function UnaccountedWarning({ list, extrasRate, onFix }: { list: UnaccountedItem
         <span className="text-sm font-bold text-amber-700 dark:text-amber-300">
           ⚠ Items unaccounted for
         </span>
-        <span className="text-sm font-bold text-amber-700 dark:text-amber-300">${total.toFixed(2)}</span>
+        <span className="text-sm font-bold text-amber-700 dark:text-amber-300">{money(total)}</span>
       </div>
       <p className="px-4 text-xs text-amber-700/80 dark:text-amber-300/80">
         Nobody is paying for these yet{extrasRate ? ' (amount includes their tax & tip)' : ''}.
@@ -29,7 +31,7 @@ function UnaccountedWarning({ list, extrasRate, onFix }: { list: UnaccountedItem
                 {claimed > 0 ? `${fmt(item.quantity - claimed)} of ${item.quantity} unclaimed` : 'nobody assigned'}
               </span>
             </span>
-            <span className="ml-2 shrink-0 text-gray-600 dark:text-gray-300">${amount.toFixed(2)}</span>
+            <span className="ml-2 shrink-0 text-gray-600 dark:text-gray-300">{money(amount)}</span>
           </div>
         ))}
       </div>
@@ -81,6 +83,7 @@ function timeAgo(ts: string): string {
 }
 
 export default function SummaryScreen() {
+  const money = useMoney()
   const receipt = useSplitStore(s => s.receipt)
   const people = useSplitStore(s => s.people)
   const assignments = useSplitStore(s => s.assignments)
@@ -181,11 +184,11 @@ export default function SummaryScreen() {
   const handleCopyText = async () => {
     const lines: string[] = [`🧾 ${receipt.title || 'Receipt Split'}\n`]
     totals.forEach(({ person, items, total }) => {
-      lines.push(`${person.name}: $${total.toFixed(2)}`)
-      items.forEach(i => lines.push(`  • ${i.name}: $${i.share.toFixed(2)}`))
+      lines.push(`${person.name}: ${money(total)}`)
+      items.forEach(i => lines.push(`  • ${i.name}: ${money(i.share)}`))
       lines.push('')
     })
-    lines.push(`Total: $${receipt.total.toFixed(2)}`)
+    lines.push(`Total: ${money(receipt.total)}`)
     await navigator.clipboard.writeText(lines.join('\n'))
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
@@ -289,24 +292,24 @@ export default function SummaryScreen() {
                 )}
                 {isPaid && (
                   <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/40 px-1.5 py-0.5 rounded-full">
-                    $ Paid
+                    ✓ Paid
                   </span>
                 )}
               </div>
-              <span className="text-lg font-bold">${total.toFixed(2)}</span>
+              <span className="text-lg font-bold">{money(total)}</span>
             </div>
 
             <div className="px-4 py-2 text-sm">
               {items.map((line, i) => (
                 <div key={i} className="flex items-baseline justify-between py-0.5">
                   <span className="text-gray-600 dark:text-gray-400">{line.name}</span>
-                  <span>${line.share.toFixed(2)}</span>
+                  <span>{money(line.share)}</span>
                 </div>
               ))}
               {items.length > 0 && extraShare > 0 && (
                 <div className="flex items-baseline justify-between py-0.5 text-gray-400 text-xs border-t border-gray-100 dark:border-gray-700 mt-1 pt-1.5">
                   <span>Tax &amp; tip (proportional)</span>
-                  <span>+${extraShare.toFixed(2)}</span>
+                  <span>+{money(extraShare)}</span>
                 </div>
               )}
               {items.length === 0 && (
@@ -333,7 +336,7 @@ export default function SummaryScreen() {
                     : 'border-blue-400 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/30'
                 }`}
               >
-                {isPaid ? '$ Paid ✓' : 'Mark paid'}
+                {isPaid ? 'Paid ✓' : 'Mark paid'}
               </button>
             </div>
 
@@ -349,7 +352,7 @@ export default function SummaryScreen() {
       {/* Grand total */}
       <div className="rounded-2xl bg-white dark:bg-gray-800 shadow-sm px-4 py-3 flex justify-between font-bold">
         <span>Total</span>
-        <span>${totals.reduce((s, t) => s + t.total, 0).toFixed(2)}</span>
+        <span>{money(totals.reduce((s, t) => s + t.total, 0))}</span>
       </div>
 
       {/* Share link */}

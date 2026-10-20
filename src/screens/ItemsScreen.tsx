@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import { useSplitStore } from '../store/useSplitStore'
 import { useFlash } from '../hooks/useFlash'
 import type { Receipt } from '../types'
+import { useMoney, currencySymbol, currencyDecimals } from '../lib/money'
 
 function NumericInput({
   value, onChange, className, min = 0, placeholder,
@@ -13,13 +14,14 @@ function NumericInput({
   placeholder?: string
 }) {
   const [raw, setRaw] = useState<string | null>(null)
+  const decimals = currencyDecimals(useSplitStore(s => s.receipt.currency))
   return (
     <input
       type="text"
       inputMode="decimal"
       placeholder={placeholder}
-      value={raw !== null ? raw : value.toFixed(2)}
-      onFocus={e => { setRaw(value === 0 ? '' : value.toFixed(2)); e.target.select() }}
+      value={raw !== null ? raw : value.toFixed(decimals)}
+      onFocus={e => { setRaw(value === 0 ? '' : value.toFixed(decimals)); e.target.select() }}
       onChange={e => setRaw(e.target.value)}
       onBlur={() => {
         const n = parseFloat(raw ?? '')
@@ -32,6 +34,8 @@ function NumericInput({
 }
 
 export default function ItemsScreen() {
+  const money = useMoney()
+  const symbol = currencySymbol(useSplitStore(s => s.receipt.currency))
   const receipt = useSplitStore(s => s.receipt)
   const scannedSubtotal = useSplitStore(s => s.scannedSubtotal)
   const images = useSplitStore(s => s.images)
@@ -337,9 +341,9 @@ export default function ItemsScreen() {
         {/* Subtotal — auto-calculated */}
         <div className="flex items-center px-4 py-2.5 border-b border-gray-100 dark:border-gray-700">
           <span className="text-sm text-gray-500 dark:text-gray-400 w-20">Subtotal</span>
-          <span className="flex-1 text-right font-medium text-sm">${liveSubtotal.toFixed(2)}</span>
+          <span className="flex-1 text-right font-medium text-sm">{money(liveSubtotal)}</span>
           {Math.abs(liveSubtotal - scannedSubtotal) > 0.01 && scannedSubtotal > 0 && (
-            <span className="ml-2 text-xs text-gray-400 shrink-0">scanned ${scannedSubtotal.toFixed(2)}</span>
+            <span className="ml-2 text-xs text-gray-400 shrink-0">scanned {money(scannedSubtotal)}</span>
           )}
         </div>
 
@@ -360,7 +364,7 @@ export default function ItemsScreen() {
         <div className="flex items-center px-4 border-b border-gray-100 dark:border-gray-700">
           <span className="text-sm text-gray-500 dark:text-gray-400 w-20">Tax</span>
           <div className="flex items-center flex-1 py-2.5 justify-end">
-            <span className="text-gray-400 mr-1 text-sm">$</span>
+            <span className="text-gray-400 mr-1 text-sm">{symbol}</span>
             <NumericInput
               value={receipt.tax}
               onChange={v => updateMeta('tax', v)}
@@ -373,7 +377,7 @@ export default function ItemsScreen() {
         <div className="flex items-center px-4 border-b border-gray-100 dark:border-gray-700">
           <span className="text-sm text-gray-500 dark:text-gray-400 w-20">Tip</span>
           <div className="flex items-center flex-1 py-2.5 justify-end">
-            <span className="text-gray-400 mr-1 text-sm">$</span>
+            <span className="text-gray-400 mr-1 text-sm">{symbol}</span>
             <NumericInput
               value={receipt.tip}
               onChange={v => updateMeta('tip', v)}
@@ -385,9 +389,9 @@ export default function ItemsScreen() {
         {/* Total — auto-calculated */}
         <div className="flex items-center px-4 py-3">
           <span className="text-sm font-bold w-20">Total</span>
-          <span className="flex-1 text-right font-bold">${liveTotal.toFixed(2)}</span>
+          <span className="flex-1 text-right font-bold">{money(liveTotal)}</span>
           {Math.abs(liveTotal - receipt.total) > 0.01 && receipt.total > 0 && (
-            <span className="ml-2 text-xs text-gray-400 shrink-0">scanned ${receipt.total.toFixed(2)}</span>
+            <span className="ml-2 text-xs text-gray-400 shrink-0">scanned {money(receipt.total)}</span>
           )}
         </div>
       </div>

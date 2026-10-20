@@ -8,6 +8,8 @@ export interface Item {
 
 export interface Receipt {
   title?: string
+  /** ISO code (e.g. "JPY"); absent means dollars. Set by WabWay. */
+  currency?: string
   items: Item[]
   subtotal: number
   discount: number

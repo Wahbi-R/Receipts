@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useSplitStore } from '../store/useSplitStore'
 import { loadHistory, type HistoryEntry } from '../lib/supabase'
+import { formatMoney } from '../lib/money'
 
 export default function HistoryScreen() {
   const { setScreen, setLoading, loadFromSupabase } = useSplitStore()
@@ -60,7 +61,7 @@ export default function HistoryScreen() {
                 <span className="font-semibold text-sm">
                   {entry.title || entry.people.join(', ')}
                 </span>
-                <span className="text-sm font-bold">${entry.total.toFixed(2)}</span>
+                <span className="text-sm font-bold">{formatMoney(entry.total, entry.currency)}</span>
               </div>
               <div className="text-xs text-gray-400 mt-0.5">
                 {entry.title && <span>{entry.people.join(', ')} · </span>}

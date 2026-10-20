@@ -15,6 +15,7 @@ export interface HistoryEntry {
   created_at: string
   title?: string
   total: number
+  currency?: string
   people: string[]
 }
 
@@ -162,7 +163,7 @@ export async function saveSplit(
   store.setSaveState('saved')
   if (!id) {
     store.setSplitId(row.id)
-    saveToLocalHistory(row, r.total, p.map(pp => pp.name), r.title)
+    saveToLocalHistory(row, r.total, p.map(pp => pp.name), r.title, r.currency)
   }
   return row.id
 }
@@ -172,10 +173,11 @@ function saveToLocalHistory(
   total: number,
   names: string[],
   title?: string,
+  currency?: string,
 ) {
   try {
     const hist = JSON.parse(localStorage.getItem('receipt_history') ?? '[]') as HistoryEntry[]
-    hist.unshift({ id: row.id, created_at: row.created_at, total, people: names, title })
+    hist.unshift({ id: row.id, created_at: row.created_at, total, currency, people: names, title })
     localStorage.setItem('receipt_history', JSON.stringify(hist.slice(0, 30)))
   } catch { /* ignore */ }
 }
