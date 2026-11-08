@@ -6,10 +6,12 @@ import { shrinkImage } from '../lib/images'
 import type { HistoryEntry } from '../types'
 import { useFlash, FLASH_CLASS } from '../hooks/useFlash'
 import { useMoney, useAltMoney, useCurrencies, formatMoney } from '../lib/money'
+import { useItemNames } from '../lib/names'
 
 function UnaccountedWarning({ list, extrasRate, onFix }: { list: UnaccountedItem[]; extrasRate: number; onFix: () => void }) {
   const money = useMoney()
   const alt = useAltMoney()
+  const names = useItemNames()
   const total = list.reduce((s, u) => s + u.amount, 0) * (1 + extrasRate)
   const fmt = (n: number) => Number(n.toFixed(2))
   return (
@@ -30,7 +32,7 @@ function UnaccountedWarning({ list, extrasRate, onFix }: { list: UnaccountedItem
         {list.map(({ item, claimed, amount }) => (
           <div key={item.id} className="flex items-baseline justify-between py-1 text-sm border-t border-amber-200/70 dark:border-amber-800/50 first:border-0">
             <span className="text-gray-800 dark:text-gray-200 min-w-0 truncate">
-              {item.name}
+              {names.name(item)}
               <span className="ml-1.5 text-xs text-amber-700 dark:text-amber-400">
                 {claimed > 0 ? `${fmt(item.quantity - claimed)} of ${item.quantity} unclaimed` : 'nobody assigned'}
               </span>
@@ -90,6 +92,7 @@ export default function SummaryScreen() {
   const money = useMoney()
   const alt = useAltMoney()
   const currencies = useCurrencies()
+  const names = useItemNames()
   const receipt = useSplitStore(s => s.receipt)
   const people = useSplitStore(s => s.people)
   const assignments = useSplitStore(s => s.assignments)
@@ -146,6 +149,13 @@ export default function SummaryScreen() {
   const flashedPeople = useFlash('people')
   const unaccounted = unaccountedItems(receipt, assignments)
   const itemsSubtotal = receipt.items.reduce((s, i) => s + i.total_price, 0)
+  // Several people paid (from WabWay): what each put in, and so what's left
+  // for each to settle — their share minus what they put in.
+  const payers = Object.entries(receipt.payers ?? {})
+    .map(([pid, amount]) => ({ person: people.find(p => p.id === Number(pid)), amount: Number(amount) }))
+    .filter((p): p is { person: NonNullable<typeof p.person>; amount: number } => !!p.person && p.amount > 0)
+  const severalPayers = payers.length >= 2
+  const gave = (personId: number) => payers.find(p => p.person.id === personId)?.amount ?? 0
   const extrasRate = itemsSubtotal > 0 ? (receipt.tax + receipt.tip - (receipt.discount ?? 0)) / itemsSubtotal : 0
 
   const handleApproval = (personId: number) => {
@@ -191,7 +201,11 @@ export default function SummaryScreen() {
     const lines: string[] = [`🧾 ${receipt.title || 'Receipt Split'}\n`]
     totals.forEach(({ person, items, total }) => {
       lines.push(`${person.name}: ${money(total)}${alt(total) ? ` (${alt(total)})` : ''}`)
-      items.forEach(i => lines.push(`  • ${i.name}: ${money(i.share)}`))
+      if (severalPayers && gave(person.id) > 0) {
+        const left = total - gave(person.id)
+        lines.push(`  put in ${money(gave(person.id))} · ${Math.abs(left) < 0.01 ? 'all square' : left > 0 ? `owes ${money(left)}` : `gets back ${money(-left)}`}`)
+      }
+      items.forEach(i => lines.push(`  • ${names.name(i)}: ${money(i.share)}`))
       lines.push('')
     })
     lines.push(`Total: ${money(receipt.total)}${alt(receipt.total) ? ` (${alt(receipt.total)})` : ''}`)
@@ -205,6 +219,14 @@ export default function SummaryScreen() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">{receipt.title || 'Summary'}</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Here's who owes what</p>
+        {names.hasTranslations && (
+          <button
+            onClick={names.toggle}
+            className="mt-2 rounded-full border border-emerald-400 px-3 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 active:scale-[.97] transition-all"
+          >
+            {names.english ? 'Show original names' : 'Show in English'}
+          </button>
+        )}
         {currencies.home && (
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <button
@@ -292,6 +314,25 @@ export default function SummaryScreen() {
         </div>
       )}
 
+      {severalPayers && (
+        <div className="rounded-2xl bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
+          <div className="px-4 pt-3 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
+            Who paid
+          </div>
+          {payers.map(({ person, amount }) => (
+            <div key={person.id} className="flex items-center px-4 py-2 border-t border-gray-100 dark:border-gray-700 first:border-0">
+              <span className="w-2.5 h-2.5 rounded-full mr-2 shrink-0" style={{ backgroundColor: person.color }} />
+              <span className="flex-1 text-sm">{person.name}</span>
+              <span className="font-semibold text-sm text-right">
+                {money(amount)}
+                {alt(amount) && <span className="block text-[11px] font-normal text-gray-500 dark:text-gray-400">{alt(amount)}</span>}
+              </span>
+            </div>
+          ))}
+          <p className="px-4 pb-3 text-[11px] text-gray-400">Each person's share minus what they put in is what they still owe (or get back).</p>
+        </div>
+      )}
+
       {totals.map(({ person, items, extraShare, total }) => {
         const isApproved = approvals[person.id]
         const isPaid = paid[person.id]
@@ -320,11 +361,19 @@ export default function SummaryScreen() {
                 {alt(total) && <span className="block text-xs font-medium text-gray-500 dark:text-gray-400">{alt(total)}</span>}
               </span>
             </div>
+            {severalPayers && gave(person.id) > 0 && (() => {
+              const left = total - gave(person.id)
+              return (
+                <div className={`px-4 pt-2 text-xs font-semibold ${left < -0.01 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-500 dark:text-gray-400'}`}>
+                  Put in {money(gave(person.id))} · {Math.abs(left) < 0.01 ? 'all square' : left > 0 ? `owes ${money(left)}` : `gets back ${money(-left)}`}
+                </div>
+              )
+            })()}
 
             <div className="px-4 py-2 text-sm">
               {items.map((line, i) => (
                 <div key={i} className="flex items-baseline justify-between py-0.5">
-                  <span className="text-gray-600 dark:text-gray-400">{line.name}</span>
+                  <span className="text-gray-600 dark:text-gray-400">{names.name(line)}</span>
                   <span>{money(line.share)}</span>
                 </div>
               ))}

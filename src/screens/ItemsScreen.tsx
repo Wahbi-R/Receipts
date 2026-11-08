@@ -280,6 +280,9 @@ export default function ItemsScreen() {
                     onChange={e => updateItemField(item.id, 'name', e.target.value)}
                     className="w-full bg-transparent rounded-md px-1.5 py-1 border border-transparent focus:border-emerald-500 focus:bg-emerald-50 dark:focus:bg-emerald-950/40 outline-none transition-colors"
                   />
+                  {item.name_en && (
+                    <span className="block px-1.5 text-[11px] text-gray-400">{item.name_en}</span>
+                  )}
                 </td>
                 <td className="px-1 py-1">
                   <input

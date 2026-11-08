@@ -1,6 +1,7 @@
 import { useSplitStore, calcPersonTotals, portionDivisor } from '../store/useSplitStore'
 import { useFlash, FLASH_CLASS } from '../hooks/useFlash'
 import { useMoney, useAltMoney } from '../lib/money'
+import { useItemNames } from '../lib/names'
 
 /** Equal splits are exact fractions (e.g. 1/7); show them rounded. */
 const fmtPortion = (w: number) => Number(w.toFixed(2))
@@ -8,6 +9,7 @@ const fmtPortion = (w: number) => Number(w.toFixed(2))
 export default function AssignScreen() {
   const money = useMoney()
   const alt = useAltMoney()
+  const names = useItemNames()
   const receipt = useSplitStore(s => s.receipt)
   const people = useSplitStore(s => s.people)
   const assignments = useSplitStore(s => s.assignments)
@@ -32,6 +34,11 @@ export default function AssignScreen() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Assign items</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Tap names, adjust portions if needed</p>
+          {names.hasTranslations && (
+            <button onClick={names.toggle} className="mt-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+              {names.english ? 'Show original names' : 'Show in English'}
+            </button>
+          )}
         </div>
         <button
           onClick={assignAll}
@@ -57,9 +64,12 @@ export default function AssignScreen() {
               {/* Item header */}
               <div className="flex items-baseline justify-between mb-2">
                 <span className="font-medium text-sm leading-tight">
-                  {item.name}
+                  {names.name(item)}
                   {item.quantity > 1 && (
                     <span className="ml-1.5 text-xs font-normal text-gray-400">×{item.quantity}</span>
+                  )}
+                  {names.printed(item) && (
+                    <span className="block text-[11px] font-normal text-gray-400">{names.printed(item)}</span>
                   )}
                 </span>
                 <span className="text-sm font-semibold ml-2 shrink-0">
