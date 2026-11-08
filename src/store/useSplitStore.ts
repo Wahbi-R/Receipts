@@ -221,7 +221,11 @@ export const useSplitStore = create<SplitStore>((set, _get) => ({
     receipt: {
       ...s.receipt,
       items: s.receipt.items.map(item =>
-        item.id === id ? { ...item, [field]: value } : item
+        item.id === id
+          ? field === 'name' && value !== item.name
+            ? { ...item, name: String(value), name_en: undefined } // translation no longer matches
+            : { ...item, [field]: value }
+          : item
       ),
     },
   })),
@@ -473,7 +477,7 @@ export function calcPersonTotals(
   assignments: Assignments,
 ) {
   const subtotals: Record<number, number> = {}
-  const itemLines: Record<number, { name: string; share: number }[]> = {}
+  const itemLines: Record<number, { name: string; name_en?: string; share: number }[]> = {}
   people.forEach(p => { subtotals[p.id] = 0; itemLines[p.id] = [] })
 
   const liveSubtotal = receipt.items.reduce((s, i) => s + i.total_price, 0)
@@ -487,7 +491,7 @@ export function calcPersonTotals(
     entries.forEach(([pid, w]) => {
       const share = (w / divisor) * item.total_price
       subtotals[pid] = (subtotals[pid] ?? 0) + share
-      itemLines[pid] = [...(itemLines[pid] ?? []), { name: item.name, share }]
+      itemLines[pid] = [...(itemLines[pid] ?? []), { name: item.name, name_en: item.name_en, share }]
     })
   })
 

@@ -1,6 +1,9 @@
 export interface Item {
   id: number
+  /** As printed on the receipt. */
   name: string
+  /** English translation when [name] isn't English (scan / WabWay). */
+  name_en?: string
   quantity: number
   unit_price: number
   total_price: number
@@ -15,6 +18,8 @@ export interface Receipt {
    *  card fee. Lets the split show "¥8,570 ≈ C$76.18". */
   home_currency?: string
   home_rate?: number
+  /** Several people paid (set by WabWay): person id → what they put in. */
+  payers?: Record<string, number>
   items: Item[]
   subtotal: number
   discount: number

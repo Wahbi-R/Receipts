@@ -47,7 +47,7 @@ export default function UploadScreen() {
 
       const nextId = { current: 0 }
       const receipt = {
-        title:    data.title,
+        title:    data.title_en && data.title ? `${data.title_en} (${data.title})` : data.title,
         subtotal: data.subtotal ?? 0,
         discount: data.discount ?? 0,
         tax:      data.tax ?? 0,
@@ -57,6 +57,7 @@ export default function UploadScreen() {
         items: (data.items ?? []).map((item: any) => ({
           id:          nextId.current++,
           name:        String(item.name ?? 'Unknown item'),
+          ...(item.name_en ? { name_en: String(item.name_en) } : {}),
           quantity:    Number(item.quantity   ?? 1),
           unit_price:  Number(item.unit_price  ?? 0),
           total_price: Number(item.total_price ?? 0),

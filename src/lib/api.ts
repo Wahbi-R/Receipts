@@ -3,7 +3,7 @@ import type { Receipt } from '../types'
 
 const API_BASE = 'https://audio.wabble.ca'
 
-export async function scanReceipt(images: ReceiptImage[]): Promise<Receipt> {
+export async function scanReceipt(images: ReceiptImage[]): Promise<Receipt & { title_en?: string }> {
   const res = await fetch(`${API_BASE}/receipt/scan`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -12,5 +12,5 @@ export async function scanReceipt(images: ReceiptImage[]): Promise<Receipt> {
     }),
   })
   if (!res.ok) throw new Error(await res.text())
-  return res.json() as Promise<Receipt>
+  return res.json() as Promise<Receipt & { title_en?: string }>
 }
